@@ -18,9 +18,16 @@ import (
 
 const proxyImage = "basecamp/kamal-proxy"
 
+const (
+	DefaultHTTPPort    = 80
+	DefaultHTTPSPort   = 443
+	DefaultMetricsPort = 1318
+)
+
 type ProxySettings struct {
-	HTTPPort  int `json:"hp"`
-	HTTPSPort int `json:"hsp"`
+	HTTPPort    int `json:"hp"`
+	HTTPSPort   int `json:"hsp"`
+	MetricsPort int `json:"mp"`
 }
 
 func UnmarshalProxySettings(s string) (ProxySettings, error) {
@@ -52,10 +59,13 @@ func NewProxy(ns *Namespace) *Proxy {
 
 func (p *Proxy) Boot(ctx context.Context, settings ProxySettings) error {
 	if settings.HTTPPort == 0 {
-		settings.HTTPPort = 80
+		settings.HTTPPort = DefaultHTTPPort
 	}
 	if settings.HTTPSPort == 0 {
-		settings.HTTPSPort = 443
+		settings.HTTPSPort = DefaultHTTPSPort
+	}
+	if settings.MetricsPort == 0 {
+		settings.MetricsPort = DefaultMetricsPort
 	}
 
 	reader, err := p.namespace.client.ImagePull(ctx, proxyImage, image.PullOptions{})
@@ -66,22 +76,26 @@ func (p *Proxy) Boot(ctx context.Context, settings ProxySettings) error {
 	_, _ = io.Copy(io.Discard, reader)
 
 	containerName := p.namespace.name + "-proxy"
+	metricsPortTCP := nat.Port(fmt.Sprintf("%d/tcp", settings.MetricsPort))
 
 	resp, err := p.namespace.client.ContainerCreate(ctx,
 		&container.Config{
 			Image: proxyImage,
+			Cmd:   []string{"kamal-proxy", "run", "--metrics-port", fmt.Sprintf("%d", settings.MetricsPort)},
 			Labels: map[string]string{
 				"amar": settings.Marshal(),
 			},
 			ExposedPorts: nat.PortSet{
-				"80/tcp":  struct{}{},
-				"443/tcp": struct{}{},
+				"80/tcp":       struct{}{},
+				"443/tcp":      struct{}{},
+				metricsPortTCP: struct{}{},
 			},
 		},
 		&container.HostConfig{
 			PortBindings: nat.PortMap{
-				"80/tcp":  []nat.PortBinding{{HostPort: fmt.Sprintf("%d", settings.HTTPPort)}},
-				"443/tcp": []nat.PortBinding{{HostPort: fmt.Sprintf("%d", settings.HTTPSPort)}},
+				"80/tcp":       []nat.PortBinding{{HostPort: fmt.Sprintf("%d", settings.HTTPPort)}},
+				"443/tcp":      []nat.PortBinding{{HostPort: fmt.Sprintf("%d", settings.HTTPSPort)}},
+				metricsPortTCP: []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: fmt.Sprintf("%d", settings.MetricsPort)}},
 			},
 			RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyAlways},
 			Mounts: []mount.Mount{

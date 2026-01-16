@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/basecamp/amar/internal/docker"
+	"github.com/basecamp/amar/internal/metrics"
 )
 
 type KeyMap struct {
@@ -33,6 +34,7 @@ type NamespaceChangedMsg struct{}
 
 type App struct {
 	namespace     *docker.Namespace
+	scraper       *metrics.MetricsScraper
 	currentIndex  int
 	currentScreen Component
 	lastSize      tea.WindowSizeMsg
@@ -54,8 +56,19 @@ func NewApp(ns *docker.Namespace) App {
 		screen = NewEmptyState()
 	}
 
+	metricsPort := docker.DefaultMetricsPort
+	if ns.Proxy().Settings != nil && ns.Proxy().Settings.MetricsPort != 0 {
+		metricsPort = ns.Proxy().Settings.MetricsPort
+	}
+
+	scraper := metrics.NewMetricsScraper(metrics.ScraperSettings{
+		Port: metricsPort,
+	})
+	scraper.Start(ctx)
+
 	return App{
 		namespace:     ns,
+		scraper:       scraper,
 		currentIndex:  0,
 		currentScreen: screen,
 		eventChan:     eventChan,
@@ -75,7 +88,7 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, DefaultKeyMap.Quit):
-			m.watchCancel()
+			m.shutdown()
 			return m, tea.Quit
 		case key.Matches(msg, DefaultKeyMap.PrevApp):
 			return m.switchApp(-1)
@@ -110,6 +123,11 @@ func Run(ns *docker.Namespace) error {
 }
 
 // Private
+
+func (m App) shutdown() {
+	m.watchCancel()
+	m.scraper.Stop()
+}
 
 func (m App) switchApp(delta int) (tea.Model, tea.Cmd) {
 	apps := m.namespace.Applications()

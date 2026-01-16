@@ -121,7 +121,7 @@ func (s *MetricsScraper) Fetch(service string, n int) []Sample {
 	return result
 }
 
-// FetchAverage returns a moving average over a sliding window.
+// FetchAverage returns a moving sum over a sliding window.
 // Each of the `points` results is the sum of `window` consecutive samples,
 // scaled up when insufficient data exists to fill the window.
 func (s *MetricsScraper) FetchAverage(service string, points, window int) []Sample {
