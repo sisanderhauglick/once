@@ -108,50 +108,6 @@ func (s *MetricsScraper) Fetch(service string, n int) []Sample {
 	return result
 }
 
-// FetchAverage returns a moving sum over a sliding window.
-// Each of the `points` results is the sum of `window` consecutive samples,
-// scaled up when insufficient data exists to fill the window.
-func (s *MetricsScraper) FetchAverage(service string, points, window int) []Sample {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]Sample, points)
-
-	data, ok := s.services[service]
-	if !ok || data.count == 0 {
-		return result
-	}
-
-	for i := range points {
-		var sum Sample
-		available := 0
-
-		for j := range window {
-			sampleIdx := i + j
-			if sampleIdx >= data.count {
-				break
-			}
-			idx := (data.head - 1 - sampleIdx + len(data.samples)) % len(data.samples)
-			sample := data.samples[idx]
-			sum.Success += sample.Success
-			sum.ClientErrors += sample.ClientErrors
-			sum.ServerErrors += sample.ServerErrors
-			available++
-		}
-
-		if available > 0 {
-			scale := int64(window) / int64(available)
-			result[i] = Sample{
-				Success:      sum.Success * scale,
-				ClientErrors: sum.ClientErrors * scale,
-				ServerErrors: sum.ServerErrors * scale,
-			}
-		}
-	}
-
-	return result
-}
-
 func (s *MetricsScraper) LastError() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -56,11 +56,14 @@ func NewApp(ns *docker.Namespace) App {
 	}
 
 	scraper := metrics.NewMetricsScraper(metrics.ScraperSettings{
-		Port: metricsPort,
+		Port:       metricsPort,
+		BufferSize: ChartHistoryLength,
 	})
 	scraper.Start(ctx)
 
-	dockerScraper := docker.NewScraper(ns, docker.ScraperSettings{})
+	dockerScraper := docker.NewScraper(ns, docker.ScraperSettings{
+		BufferSize: ChartHistoryLength,
+	})
 	dockerScraper.Start(ctx)
 
 	var screen Component

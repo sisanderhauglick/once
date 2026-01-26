@@ -7,15 +7,60 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+const ChartHistoryLength = 200
+
+type UnitType int
+
+const (
+	UnitCount   UnitType = iota // 1K, 1M (requests, errors)
+	UnitPercent                 // 50.0%
+	UnitBytes                   // 128 MiB, 1.5 GiB
+)
+
+func (u UnitType) Format(value float64) string {
+	switch u {
+	case UnitPercent:
+		return fmt.Sprintf("%.0f%%", value)
+	case UnitBytes:
+		const (
+			KiB = 1024
+			MiB = KiB * 1024
+			GiB = MiB * 1024
+		)
+		switch {
+		case value >= GiB:
+			return fmt.Sprintf("%.1fG", value/GiB)
+		case value >= MiB:
+			return fmt.Sprintf("%.0fM", value/MiB)
+		case value >= KiB:
+			return fmt.Sprintf("%.0fK", value/KiB)
+		default:
+			return fmt.Sprintf("%.0fB", value)
+		}
+	default: // UnitCount
+		if value >= 1_000_000 {
+			return fmt.Sprintf("%.1fM", value/1_000_000)
+		}
+		if value >= 1_000 {
+			return fmt.Sprintf("%.1fK", value/1_000)
+		}
+		return fmt.Sprintf("%.0f", value)
+	}
+}
+
+type DataSource func() []float64
+
 // Chart renders a histogram-style chart using braille characters.
 // Each data point is one character wide, and the height scales dynamically
 // so the maximum value fills the available height.
 type Chart struct {
-	Width  int
-	Height int
-	Data   []float64
-	Color  lipgloss.Style
-	Title  string
+	title      string
+	color      lipgloss.Style
+	unit       UnitType
+	dataSource DataSource
+	width      int
+	height     int
+	data       []float64
 }
 
 // braille bit patterns for left and right columns
@@ -27,31 +72,47 @@ var (
 	rightDots = [4]rune{0x80, 0x20, 0x10, 0x08} // dots 8, 6, 5, 4
 )
 
-func NewChart(width, height int, data []float64) Chart {
+func NewChart(title string, color lipgloss.Style, unit UnitType, dataSource DataSource) Chart {
 	return Chart{
-		Width:  width,
-		Height: height,
-		Data:   data,
-		Color:  lipgloss.NewStyle().Foreground(Colors.Secondary),
+		title:      title,
+		color:      color,
+		unit:       unit,
+		dataSource: dataSource,
 	}
 }
 
+func (c *Chart) Update() {
+	c.data = c.dataSource()
+}
+
+func (c *Chart) SetSize(w, h int) {
+	c.width = w
+	c.height = h
+}
+
 func (c Chart) View() string {
-	if len(c.Data) == 0 || c.Width == 0 || c.Height == 0 {
+	if c.width == 0 || c.height == 0 {
 		return ""
 	}
 
-	// Account for border (2 chars width, 2 lines height)
-	innerWidth := c.Width - 2
+	// Ensure data fills the chart width (each chart char = 2 data points)
+	dataPoints := c.width * 2
+	data := make([]float64, dataPoints)
+	srcStart := max(0, len(c.data)-dataPoints)
+	dstStart := max(0, dataPoints-len(c.data))
+	copy(data[dstStart:], c.data[srcStart:])
 
-	maxVal := c.maxValue()
+	// Account for border (2 chars width, 2 lines height)
+	innerWidth := c.width - 2
+
+	maxVal := maxValue(data)
 	displayMax := maxVal
 	if maxVal == 0 {
 		maxVal = 1
 	}
 
 	// Format labels and calculate label width
-	maxLabel := formatChartValue(displayMax)
+	maxLabel := c.unit.Format(displayMax)
 	labelWidth := max(len(maxLabel), 1)
 	chartWidth := innerWidth - labelWidth - 1 // -1 for space between label and chart
 
@@ -60,11 +121,11 @@ func (c Chart) View() string {
 	}
 
 	// Each character row represents 4 vertical dots
-	dotsHeight := c.Height * 4
+	dotsHeight := c.height * 4
 
 	// Calculate the height in dots for each data point
-	heights := make([]int, len(c.Data))
-	for i, v := range c.Data {
+	heights := make([]int, len(data))
+	for i, v := range data {
 		heights[i] = int((v / maxVal) * float64(dotsHeight))
 		if v > 0 && heights[i] == 0 {
 			heights[i] = 1 // ensure non-zero values show at least 1 dot
@@ -74,8 +135,8 @@ func (c Chart) View() string {
 	var content []string
 
 	// Title line (centered over inner width)
-	if c.Title != "" {
-		titleLine := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(c.Title)
+	if c.title != "" {
+		titleLine := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(c.title)
 		content = append(content, titleLine)
 	}
 
@@ -84,9 +145,9 @@ func (c Chart) View() string {
 	dataOffset := max(0, len(heights)-chartWidth*2)
 
 	labelStyle := lipgloss.NewStyle().Width(labelWidth).Align(lipgloss.Left)
-	for row := range c.Height {
+	for row := range c.height {
 		var sb strings.Builder
-		rowBottomDot := (c.Height - 1 - row) * 4
+		rowBottomDot := (c.height - 1 - row) * 4
 		rowTopDot := rowBottomDot + 4
 
 		for col := range chartWidth {
@@ -113,13 +174,13 @@ func (c Chart) View() string {
 		switch row {
 		case 0:
 			label = labelStyle.Render(maxLabel)
-		case c.Height - 1:
+		case c.height - 1:
 			label = labelStyle.Render("0")
 		default:
 			label = labelStyle.Render("")
 		}
 
-		chartRow := c.Color.Render(sb.String())
+		chartRow := c.color.Render(sb.String())
 		content = append(content, label+" "+chartRow)
 	}
 
@@ -145,27 +206,37 @@ func brailleColumn(h, rowBottom, rowTop int, dots [4]rune) rune {
 	return bits
 }
 
-func (c Chart) maxValue() float64 {
-	if len(c.Data) == 0 {
-		return 0
+// SlidingSum smooths data using overlapping windows.
+// Each output[i] = sum of data[i:i+window] (clamped to bounds).
+// Returns same length as input.
+func SlidingSum(data []float64, window int) []float64 {
+	if len(data) == 0 || window <= 0 {
+		return data
 	}
-	max := c.Data[0]
-	for _, v := range c.Data[1:] {
-		if v > max {
-			max = v
+
+	result := make([]float64, len(data))
+	for i := range data {
+		var sum float64
+		end := min(i+window, len(data))
+		for j := i; j < end; j++ {
+			sum += data[j]
 		}
+		result[i] = sum
 	}
-	return max
+	return result
 }
 
 // Helpers
 
-func formatChartValue(v float64) string {
-	if v >= 1_000_000 {
-		return fmt.Sprintf("%.1fM", v/1_000_000)
+func maxValue(data []float64) float64 {
+	if len(data) == 0 {
+		return 0
 	}
-	if v >= 1_000 {
-		return fmt.Sprintf("%.1fK", v/1_000)
+	m := data[0]
+	for _, v := range data[1:] {
+		if v > m {
+			m = v
+		}
 	}
-	return fmt.Sprintf("%.0f", v)
+	return m
 }

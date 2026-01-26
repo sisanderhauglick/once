@@ -3,6 +3,9 @@ package ui
 import (
 	"fmt"
 	"testing"
+
+	"charm.land/lipgloss/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestChartView(t *testing.T) {
@@ -18,7 +21,9 @@ func TestChartView(t *testing.T) {
 		60, 65, 50, 55, 65, 60, 55, 60, 45, 50,
 	}
 
-	chart := NewChart(40, 8, data)
+	chart := NewChart("Test", lipgloss.NewStyle(), UnitCount, func() []float64 { return data })
+	chart.SetSize(40, 8)
+	chart.Update()
 	output := chart.View()
 
 	fmt.Println("\nChart output:")
@@ -27,4 +32,53 @@ func TestChartView(t *testing.T) {
 	if output == "" {
 		t.Error("expected non-empty chart output")
 	}
+}
+
+func TestSlidingSum(t *testing.T) {
+	data := []float64{1, 2, 3, 4, 5}
+	result := SlidingSum(data, 2)
+
+	// Each output[i] = sum of data[i:i+2]
+	// [0]: 1+2 = 3
+	// [1]: 2+3 = 5
+	// [2]: 3+4 = 7
+	// [3]: 4+5 = 9
+	// [4]: 5 (only 1 element at end)
+	assert.Equal(t, []float64{3, 5, 7, 9, 5}, result)
+}
+
+func TestSlidingSumLargeWindow(t *testing.T) {
+	data := []float64{1, 2, 3}
+	result := SlidingSum(data, 5)
+
+	// Window larger than available data at each position
+	// [0]: 1+2+3 = 6
+	// [1]: 2+3 = 5
+	// [2]: 3 = 3
+	assert.Equal(t, []float64{6, 5, 3}, result)
+}
+
+func TestSlidingSumEmpty(t *testing.T) {
+	result := SlidingSum([]float64{}, 3)
+	assert.Empty(t, result)
+}
+
+func TestSlidingSumWindowOne(t *testing.T) {
+	data := []float64{10, 20, 30}
+	result := SlidingSum(data, 1)
+	assert.Equal(t, data, result)
+}
+
+func TestUnitTypeFormat(t *testing.T) {
+	assert.Equal(t, "50%", UnitPercent.Format(50))
+	assert.Equal(t, "100%", UnitPercent.Format(99.9))
+
+	assert.Equal(t, "512B", UnitBytes.Format(512))
+	assert.Equal(t, "1K", UnitBytes.Format(1024))
+	assert.Equal(t, "128M", UnitBytes.Format(128*1024*1024))
+	assert.Equal(t, "1.5G", UnitBytes.Format(1.5*1024*1024*1024))
+
+	assert.Equal(t, "500", UnitCount.Format(500))
+	assert.Equal(t, "1.5K", UnitCount.Format(1500))
+	assert.Equal(t, "2.5M", UnitCount.Format(2500000))
 }

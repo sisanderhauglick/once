@@ -17,6 +17,18 @@ import (
 	"github.com/basecamp/amar/internal/metrics"
 )
 
+var chartColors = struct {
+	Green  lipgloss.Style
+	Red    lipgloss.Style
+	Blue   lipgloss.Style
+	Purple lipgloss.Style
+}{
+	Green:  lipgloss.NewStyle().Foreground(lipgloss.Color("#50fa7b")),
+	Red:    lipgloss.NewStyle().Foreground(lipgloss.Color("#ff5555")),
+	Blue:   lipgloss.NewStyle().Foreground(lipgloss.Color("#8be9fd")),
+	Purple: lipgloss.NewStyle().Foreground(lipgloss.Color("#bd93f9")),
+}
+
 type dashboardKeyMap struct {
 	Upgrade key.Binding
 	PrevApp key.Binding
@@ -47,76 +59,10 @@ type Dashboard struct {
 	upgrading     bool
 	progress      ProgressBusy
 	help          help.Model
-	allReqChart   RequestRateChart
-	errorChart    RequestRateChart
-}
-
-type RequestRateChart struct {
-	scraper    *metrics.MetricsScraper
-	service    string
-	title      string
-	onlyErrors bool
-	width      int
-	height     int
-	data       []float64
-}
-
-func NewRequestRateChart(scraper *metrics.MetricsScraper, service, title string, onlyErrors bool) RequestRateChart {
-	return RequestRateChart{
-		scraper:    scraper,
-		service:    service,
-		title:      title,
-		onlyErrors: onlyErrors,
-	}
-}
-
-func (c *RequestRateChart) SetSize(width, height int) {
-	c.width = width
-	c.height = height
-}
-
-func (c *RequestRateChart) Update() {
-	samples := c.scraper.FetchAverage(c.service, 200, 12)
-
-	c.data = make([]float64, len(samples))
-	for i, s := range samples {
-		if c.onlyErrors {
-			c.data[i] = float64(s.ServerErrors)
-		} else {
-			c.data[i] = float64(s.Success + s.ClientErrors + s.ServerErrors)
-		}
-	}
-
-	// Reverse so most recent is on the right
-	slices.Reverse(c.data)
-}
-
-func (c RequestRateChart) View() string {
-	// Ensure data fills the chart width (each chart char = 2 data points)
-	dataPoints := c.width * 2
-	data := c.data
-	if len(data) < dataPoints {
-		padded := make([]float64, dataPoints)
-		copy(padded[dataPoints-len(data):], data)
-		data = padded
-	} else if len(data) > dataPoints {
-		data = data[len(data)-dataPoints:]
-	}
-
-	chart := Chart{
-		Width:  c.width,
-		Height: c.height,
-		Data:   data,
-		Title:  c.title,
-	}
-
-	if c.onlyErrors {
-		chart.Color = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff5555"))
-	} else {
-		chart.Color = lipgloss.NewStyle().Foreground(lipgloss.Color("#50fa7b"))
-	}
-
-	return chart.View()
+	allReqChart   Chart
+	errorChart    Chart
+	cpuChart      Chart
+	memoryChart   Chart
 }
 
 type dashboardTickMsg struct{}
@@ -127,10 +73,52 @@ type upgradeFinishedMsg struct {
 
 func NewDashboard(app *docker.Application, scraper *metrics.MetricsScraper, dockerScraper *docker.Scraper) Dashboard {
 	service := app.Settings.Name
-	allReqChart := NewRequestRateChart(scraper, service, "Requests/min", false)
-	errorChart := NewRequestRateChart(scraper, service, "Errors/min", true)
+
+	allReqChart := NewChart("Requests/min", chartColors.Green, UnitCount, func() []float64 {
+		samples := scraper.Fetch(service, ChartHistoryLength)
+		data := make([]float64, len(samples))
+		for i, s := range samples {
+			data[i] = float64(s.Success + s.ClientErrors + s.ServerErrors)
+		}
+		slices.Reverse(data)
+		return SlidingSum(data, 12)
+	})
+
+	errorChart := NewChart("Errors/min", chartColors.Red, UnitCount, func() []float64 {
+		samples := scraper.Fetch(service, ChartHistoryLength)
+		data := make([]float64, len(samples))
+		for i, s := range samples {
+			data[i] = float64(s.ServerErrors)
+		}
+		slices.Reverse(data)
+		return SlidingSum(data, 12)
+	})
+
+	cpuChart := NewChart("CPU %", chartColors.Blue, UnitPercent, func() []float64 {
+		samples := dockerScraper.Fetch(service, ChartHistoryLength)
+		data := make([]float64, len(samples))
+		for i, s := range samples {
+			data[i] = s.CPUPercent
+		}
+		slices.Reverse(data)
+		return data
+	})
+
+	memoryChart := NewChart("Memory", chartColors.Purple, UnitBytes, func() []float64 {
+		samples := dockerScraper.Fetch(service, ChartHistoryLength)
+		data := make([]float64, len(samples))
+		for i, s := range samples {
+			data[i] = float64(s.MemoryBytes)
+		}
+		slices.Reverse(data)
+		return data
+	})
+
 	allReqChart.Update()
 	errorChart.Update()
+	cpuChart.Update()
+	memoryChart.Update()
+
 	return Dashboard{
 		app:           app,
 		scraper:       scraper,
@@ -138,6 +126,8 @@ func NewDashboard(app *docker.Application, scraper *metrics.MetricsScraper, dock
 		help:          help.New(),
 		allReqChart:   allReqChart,
 		errorChart:    errorChart,
+		cpuChart:      cpuChart,
+		memoryChart:   memoryChart,
 	}
 }
 
@@ -155,9 +145,11 @@ func (m Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 		m.help.SetWidth(m.width)
 
 		chartWidth := m.width / 2
-		chartHeight := 20
+		chartHeight := 8
 		m.allReqChart.SetSize(chartWidth, chartHeight)
 		m.errorChart.SetSize(chartWidth, chartHeight)
+		m.cpuChart.SetSize(chartWidth, chartHeight)
+		m.memoryChart.SetSize(chartWidth, chartHeight)
 
 		if m.upgrading {
 			cmds = append(cmds, m.progress.Init())
@@ -173,6 +165,8 @@ func (m Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 	case dashboardTickMsg:
 		m.allReqChart.Update()
 		m.errorChart.Update()
+		m.cpuChart.Update()
+		m.memoryChart.Update()
 		cmds = append(cmds, tea.Tick(time.Second, func(time.Time) tea.Msg { return dashboardTickMsg{} }))
 	case progressBusyTickMsg:
 		if m.upgrading {
@@ -218,11 +212,6 @@ func (m Dashboard) View() string {
 		infoLines = append(infoLines, fmt.Sprintf("URL: %s", url))
 	}
 
-	if samples := m.dockerScraper.Fetch(m.app.Settings.Name, 1); len(samples) > 0 {
-		sample := samples[0]
-		infoLines = append(infoLines, fmt.Sprintf("CPU: %.1f%%  Memory: %s", sample.CPUPercent, formatBytes(sample.MemoryBytes)))
-	}
-
 	infoContent := strings.Join(infoLines, "\n")
 	infoBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -231,8 +220,10 @@ func (m Dashboard) View() string {
 		Width(m.width).
 		Render(infoContent)
 
-	// Charts side by side
-	charts := lipgloss.JoinHorizontal(lipgloss.Top, m.allReqChart.View(), m.errorChart.View())
+	// Charts in 2x2 grid
+	row1 := lipgloss.JoinHorizontal(lipgloss.Top, m.allReqChart.View(), m.errorChart.View())
+	row2 := lipgloss.JoinHorizontal(lipgloss.Top, m.cpuChart.View(), m.memoryChart.View())
+	charts := lipgloss.JoinVertical(lipgloss.Left, row1, row2)
 
 	// Help string (last line, centered)
 	helpView := m.help.View(dashboardKeys)
@@ -292,20 +283,3 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dd %dh", days, hours)
 }
 
-func formatBytes(b uint64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-	)
-	switch {
-	case b >= GB:
-		return fmt.Sprintf("%.1f GB", float64(b)/GB)
-	case b >= MB:
-		return fmt.Sprintf("%.1f MB", float64(b)/MB)
-	case b >= KB:
-		return fmt.Sprintf("%.1f KB", float64(b)/KB)
-	default:
-		return fmt.Sprintf("%d B", b)
-	}
-}
