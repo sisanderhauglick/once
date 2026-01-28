@@ -21,7 +21,7 @@ func TestSettingsForm_InitialState_NonLocalhost(t *testing.T) {
 	assert.Equal(t, settingsFieldImage, form.focused)
 	assert.Equal(t, "nginx:latest", form.imageInput.Value())
 	assert.Equal(t, "app.example.com", form.hostnameInput.Value())
-	assert.True(t, form.tlsEnabled)
+	assert.True(t, form.settings.TLSEnabled())
 }
 
 func TestSettingsForm_InitialState_Localhost(t *testing.T) {
@@ -33,7 +33,7 @@ func TestSettingsForm_InitialState_Localhost(t *testing.T) {
 	form := NewSettingsForm(settings)
 
 	assert.Equal(t, "chat.localhost", form.hostnameInput.Value())
-	assert.False(t, form.tlsEnabled, "TLS should be disabled for localhost even when DisableTLS is false")
+	assert.False(t, form.settings.TLSEnabled(), "TLS should be disabled for localhost even when DisableTLS is false")
 }
 
 func TestSettingsForm_TabNavigation(t *testing.T) {
@@ -68,7 +68,7 @@ func TestSettingsForm_ShiftTabNavigation(t *testing.T) {
 
 func TestSettingsForm_SpaceTogglesTLS(t *testing.T) {
 	form := NewSettingsForm(docker.ApplicationSettings{Host: "app.example.com"})
-	assert.True(t, form.tlsEnabled)
+	assert.True(t, form.settings.TLSEnabled())
 
 	// Tab twice to get to TLS field (Image -> Hostname -> TLS)
 	form = settingsPressTab(form)
@@ -76,15 +76,15 @@ func TestSettingsForm_SpaceTogglesTLS(t *testing.T) {
 	assert.Equal(t, settingsFieldTLS, form.focused)
 
 	form = settingsPressSpace(form)
-	assert.False(t, form.tlsEnabled)
+	assert.False(t, form.settings.TLSEnabled())
 
 	form = settingsPressSpace(form)
-	assert.True(t, form.tlsEnabled)
+	assert.True(t, form.settings.TLSEnabled())
 }
 
 func TestSettingsForm_SpaceDoesNotToggleTLSForLocalhost(t *testing.T) {
 	form := NewSettingsForm(docker.ApplicationSettings{Host: "chat.localhost"})
-	assert.False(t, form.tlsEnabled)
+	assert.False(t, form.settings.TLSEnabled())
 
 	// Tab twice to get to TLS field
 	form = settingsPressTab(form)
@@ -92,23 +92,26 @@ func TestSettingsForm_SpaceDoesNotToggleTLSForLocalhost(t *testing.T) {
 	assert.Equal(t, settingsFieldTLS, form.focused)
 
 	form = settingsPressSpace(form)
-	assert.False(t, form.tlsEnabled, "TLS should remain disabled for localhost")
+	assert.False(t, form.settings.TLSEnabled(), "TLS should remain disabled for localhost")
 }
 
-func TestSettingsForm_ChangingHostnameToLocalhostDisablesTLS(t *testing.T) {
+func TestSettingsForm_TLSShowsDisabledForLocalhost(t *testing.T) {
 	form := NewSettingsForm(docker.ApplicationSettings{Host: "app.example.com"})
-	assert.True(t, form.tlsEnabled)
+	assert.True(t, form.settings.TLSEnabled())
 
-	// Tab to hostname field
+	// Tab to hostname field and change to localhost
 	form = settingsPressTab(form)
-	assert.Equal(t, settingsFieldHostname, form.focused)
-
 	form = settingsTypeText(form, ".localhost")
-	assert.False(t, form.tlsEnabled, "TLS should be disabled after hostname becomes localhost")
+	assert.False(t, form.settings.TLSEnabled(), "TLS should show as disabled for localhost")
+
+	// Change back to non-localhost - TLS preference is preserved
+	form = settingsClearAndType(form, "app.example.com")
+	assert.True(t, form.settings.TLSEnabled(), "TLS preference should be preserved")
 }
 
 func TestSettingsForm_Submit(t *testing.T) {
 	form := NewSettingsForm(docker.ApplicationSettings{
+		Name:  "myapp",
 		Image: "nginx:latest",
 		Host:  "app.example.com",
 	})
@@ -120,9 +123,10 @@ func TestSettingsForm_Submit(t *testing.T) {
 	msg := cmd()
 	submitMsg, ok := msg.(SettingsFormSubmitMsg)
 	require.True(t, ok, "expected SettingsFormSubmitMsg, got %T", msg)
-	assert.Equal(t, "nginx:latest", submitMsg.Image)
-	assert.Equal(t, "app.example.com", submitMsg.Hostname)
-	assert.True(t, submitMsg.TLSEnabled)
+	assert.Equal(t, "myapp", submitMsg.Settings.Name)
+	assert.Equal(t, "nginx:latest", submitMsg.Settings.Image)
+	assert.Equal(t, "app.example.com", submitMsg.Settings.Host)
+	assert.False(t, submitMsg.Settings.DisableTLS)
 }
 
 func TestSettingsForm_Cancel(t *testing.T) {
@@ -144,6 +148,12 @@ func settingsTypeText(form SettingsForm, text string) SettingsForm {
 		form, _ = form.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 	return form
+}
+
+func settingsClearAndType(form SettingsForm, text string) SettingsForm {
+	form.hostnameInput.SetValue("")
+	form.settings.Host = ""
+	return settingsTypeText(form, text)
 }
 
 func settingsPressTab(form SettingsForm) SettingsForm {

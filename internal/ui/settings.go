@@ -87,9 +87,7 @@ func (m Settings) Update(msg tea.Msg) (Component, tea.Cmd) {
 
 	case SettingsFormSubmitMsg:
 		m.state = settingsStateDeploying
-		m.app.Settings.Image = msg.Image
-		m.app.Settings.Host = msg.Hostname
-		m.app.Settings.DisableTLS = !msg.TLSEnabled
+		m.app.Settings = msg.Settings
 		m.progress = NewProgressBusy(m.width, lipgloss.Color("#6272a4"))
 		return m, tea.Batch(m.progress.Init(), m.runDeploy())
 

@@ -21,9 +21,7 @@ const (
 )
 
 type SettingsFormSubmitMsg struct {
-	Image      string
-	Hostname   string
-	TLSEnabled bool
+	Settings docker.ApplicationSettings
 }
 
 type SettingsFormCancelMsg struct{}
@@ -31,9 +29,9 @@ type SettingsFormCancelMsg struct{}
 type SettingsForm struct {
 	width, height int
 	focused       settingsFormField
+	settings      docker.ApplicationSettings
 	imageInput    textinput.Model
 	hostnameInput textinput.Model
-	tlsEnabled    bool
 }
 
 func NewSettingsForm(settings docker.ApplicationSettings) SettingsForm {
@@ -52,9 +50,9 @@ func NewSettingsForm(settings docker.ApplicationSettings) SettingsForm {
 
 	return SettingsForm{
 		focused:       settingsFieldImage,
+		settings:      settings,
 		imageInput:    image,
 		hostnameInput: hostname,
-		tlsEnabled:    settings.TLSEnabled(),
 	}
 }
 
@@ -81,8 +79,8 @@ func (m SettingsForm) Update(msg tea.Msg) (SettingsForm, tea.Cmd) {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("enter"))):
 			return m.handleEnter()
 		case key.Matches(msg, key.NewBinding(key.WithKeys("space"))) && m.focused == settingsFieldTLS:
-			if m.tlsAvailable() {
-				m.tlsEnabled = !m.tlsEnabled
+			if !docker.IsLocalhost(m.settings.Host) {
+				m.settings.DisableTLS = !m.settings.DisableTLS
 			}
 			return m, nil
 		}
@@ -92,14 +90,13 @@ func (m SettingsForm) Update(msg tea.Msg) (SettingsForm, tea.Cmd) {
 	case settingsFieldImage:
 		var cmd tea.Cmd
 		m.imageInput, cmd = m.imageInput.Update(msg)
+		m.settings.Image = m.imageInput.Value()
 		cmds = append(cmds, cmd)
 	case settingsFieldHostname:
 		var cmd tea.Cmd
 		m.hostnameInput, cmd = m.hostnameInput.Update(msg)
+		m.settings.Host = m.hostnameInput.Value()
 		cmds = append(cmds, cmd)
-		if !m.tlsAvailable() {
-			m.tlsEnabled = false
-		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -116,9 +113,9 @@ func (m SettingsForm) View() string {
 
 	tlsLabel := Styles.Label.Render("TLS")
 	var tlsText string
-	if !m.tlsAvailable() {
+	if docker.IsLocalhost(m.settings.Host) {
 		tlsText = "Not available for localhost"
-	} else if m.tlsEnabled {
+	} else if m.settings.TLSEnabled() {
 		tlsText = "[x] Enabled"
 	} else {
 		tlsText = "[ ] Enabled"
@@ -186,19 +183,15 @@ func (m SettingsForm) handleEnter() (SettingsForm, tea.Cmd) {
 	case settingsFieldImage, settingsFieldHostname, settingsFieldTLS:
 		return m.focusNext()
 	case settingsFieldSaveButton:
-		return m, func() tea.Msg {
-			return SettingsFormSubmitMsg{
-				Image:      m.imageInput.Value(),
-				Hostname:   m.hostnameInput.Value(),
-				TLSEnabled: m.tlsEnabled,
-			}
-		}
+		return m.submitForm()
 	case settingsFieldCancelButton:
 		return m, func() tea.Msg { return SettingsFormCancelMsg{} }
 	}
 	return m, nil
 }
 
-func (m SettingsForm) tlsAvailable() bool {
-	return !docker.IsLocalhost(m.hostnameInput.Value())
+func (m SettingsForm) submitForm() (SettingsForm, tea.Cmd) {
+	return m, func() tea.Msg {
+		return SettingsFormSubmitMsg{Settings: m.settings}
+	}
 }
