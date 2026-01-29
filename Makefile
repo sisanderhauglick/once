@@ -1,4 +1,4 @@
-.PHONY: build test integration lint
+.PHONY: build test integration lint coverage
 
 PLATFORMS = linux darwin
 ARCHITECTURES = amd64 arm64
@@ -22,3 +22,7 @@ integration:
 
 lint:
 	golangci-lint run
+
+coverage:
+	go test -coverprofile=coverage.out ./internal/...
+	go tool cover -html=coverage.out
