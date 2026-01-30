@@ -153,12 +153,33 @@ func (m Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 		m.progress = NewProgressBusy(m.width, lipgloss.Color("#6272a4"))
 		m.help.SetWidth(m.width)
 
-		chartWidth := m.width / 2
-		chartHeight := 8
-		m.allReqChart.SetSize(chartWidth, chartHeight)
-		m.errorChart.SetSize(chartWidth, chartHeight)
-		m.cpuChart.SetSize(chartWidth, chartHeight)
-		m.memoryChart.SetSize(chartWidth, chartHeight)
+		// Left charts round down, right charts get remainder
+		leftChartWidth := m.width / 2
+		rightChartWidth := m.width - leftChartWidth
+
+		// Calculate available height for charts
+		// Header: border (2) + title (1) + blank (1) + extra lines
+		extraLineCount := 1 // state line is always present
+		if m.app.Settings.URL() != "" {
+			extraLineCount++
+		}
+		headerHeight := 4 + extraLineCount
+		footerHeight := 1
+		// Each chart renders as: border (2) + title (1) + chartHeight rows
+		// So 2 rows of charts = 2 * (chartHeight + 3)
+		// Available = m.height - headerHeight - 1 (newline) - footerHeight
+		// 2 * (chartHeight + 3) = available
+		// chartHeight = (available / 2) - 3
+		availableHeight := m.height - headerHeight - footerHeight - 1
+		chartHeight := (availableHeight / 2) - 3
+		if chartHeight < 1 {
+			chartHeight = 1
+		}
+
+		m.allReqChart.SetSize(leftChartWidth, chartHeight)
+		m.errorChart.SetSize(rightChartWidth, chartHeight)
+		m.cpuChart.SetSize(leftChartWidth, chartHeight)
+		m.memoryChart.SetSize(rightChartWidth, chartHeight)
 
 		if m.upgrading {
 			cmds = append(cmds, m.progress.Init())
