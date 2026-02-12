@@ -474,6 +474,11 @@ func (a *Application) deployWithVolume(ctx context.Context, vol *ApplicationVolu
 				Source: vol.Name(),
 				Target: "/rails/storage",
 			},
+			{
+				Type:   mount.TypeVolume,
+				Source: vol.Name(),
+				Target: "/storage",
+			},
 		},
 	}
 	hostConfig.Resources = container.Resources{
