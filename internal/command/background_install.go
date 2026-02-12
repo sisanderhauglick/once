@@ -22,7 +22,7 @@ Restart=on-failure
 RestartSec=60
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 `
 
 type BackgroundInstallCommand struct {
@@ -34,7 +34,7 @@ func NewBackgroundInstallCommand(root *RootCommand) *BackgroundInstallCommand {
 	b := &BackgroundInstallCommand{root: root}
 	b.cmd = &cobra.Command{
 		Use:   "install",
-		Short: "Install background tasks as a systemd user service",
+		Short: "Install background tasks as a systemd service",
 		Args:  cobra.NoArgs,
 		RunE:  b.run,
 	}
@@ -48,6 +48,10 @@ func (b *BackgroundInstallCommand) Command() *cobra.Command {
 // Private
 
 func (b *BackgroundInstallCommand) run(cmd *cobra.Command, args []string) error {
+	if os.Getuid() != 0 {
+		return fmt.Errorf("must be run as root")
+	}
+
 	ctx := context.Background()
 
 	namespace, _ := cmd.Root().PersistentFlags().GetString("namespace")
@@ -59,6 +63,11 @@ func (b *BackgroundInstallCommand) run(cmd *cobra.Command, args []string) error 
 
 	serviceName := namespace + "-background"
 	unitContent := fmt.Sprintf(unitTemplate, namespace, execPath, namespace)
+
+	if systemd.IsInstalled(serviceName) {
+		fmt.Printf("Service %s.service is already installed\n", serviceName)
+		return nil
+	}
 
 	if err := systemd.Install(ctx, serviceName, unitContent); err != nil {
 		return fmt.Errorf("installing service: %w", err)
