@@ -85,8 +85,8 @@ type ApplicationSettings struct {
 	EnvVars    map[string]string  `json:"env"`
 	SMTP       SMTPSettings       `json:"sm"`
 	Resources  ContainerResources `json:"res"`
-	AutoUpdate bool               `json:"au,omitempty"`
-	Backup     BackupSettings     `json:"bk,omitempty"`
+	AutoUpdate bool               `json:"au"`
+	Backup     BackupSettings     `json:"bk"`
 }
 
 func UnmarshalApplicationSettings(s string) (ApplicationSettings, error) {

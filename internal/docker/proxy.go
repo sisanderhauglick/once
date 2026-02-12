@@ -204,7 +204,7 @@ func (p *Proxy) LoadState(ctx context.Context) (*State, error) {
 func (p *Proxy) SaveState(ctx context.Context, state *State) error {
 	containerName := p.namespace.name + "-proxy"
 
-	data, err := json.Marshal(state)
+	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling state: %w", err)
 	}

@@ -243,8 +243,8 @@ func TestTrimBackups(t *testing.T) {
 		},
 	}
 
-	oldTime := time.Now().Add(-31 * 24 * time.Hour)
-	recentTime := time.Now().Add(-1 * 24 * time.Hour)
+	oldTime := time.Now().Add(-BackupRetention - time.Hour)
+	recentTime := time.Now().Add(-time.Minute)
 
 	createFile := func(name string) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("data"), 0644))

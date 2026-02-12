@@ -19,23 +19,23 @@ func TestBackupDue(t *testing.T) {
 		assert.True(t, s.BackupDue("myapp"))
 	})
 
-	t.Run("due when last backup was more than 24h ago", func(t *testing.T) {
+	t.Run("due when last backup exceeds interval", func(t *testing.T) {
 		s := &State{Apps: map[string]*AppState{
-			"myapp": {LastBackup: &OperationResult{At: time.Now().Add(-25 * time.Hour)}},
+			"myapp": {LastBackup: OperationResult{At: time.Now().Add(-AutomaticTaskInterval - time.Minute)}},
 		}}
 		assert.True(t, s.BackupDue("myapp"))
 	})
 
 	t.Run("not due when last backup was recent and successful", func(t *testing.T) {
 		s := &State{Apps: map[string]*AppState{
-			"myapp": {LastBackup: &OperationResult{At: time.Now().Add(-1 * time.Hour)}},
+			"myapp": {LastBackup: OperationResult{At: time.Now().Add(-time.Second)}},
 		}}
 		assert.False(t, s.BackupDue("myapp"))
 	})
 
 	t.Run("due when last backup was recent but had an error", func(t *testing.T) {
 		s := &State{Apps: map[string]*AppState{
-			"myapp": {LastBackup: &OperationResult{At: time.Now().Add(-1 * time.Hour), Error: "disk full"}},
+			"myapp": {LastBackup: OperationResult{At: time.Now().Add(-time.Second), Error: "disk full"}},
 		}}
 		assert.True(t, s.BackupDue("myapp"))
 	})
@@ -49,14 +49,14 @@ func TestUpdateDue(t *testing.T) {
 
 	t.Run("not due when last update was recent and successful", func(t *testing.T) {
 		s := &State{Apps: map[string]*AppState{
-			"myapp": {LastUpdate: &OperationResult{At: time.Now().Add(-1 * time.Hour)}},
+			"myapp": {LastUpdate: OperationResult{At: time.Now().Add(-time.Second)}},
 		}}
 		assert.False(t, s.UpdateDue("myapp"))
 	})
 
 	t.Run("due when last update was recent but had an error", func(t *testing.T) {
 		s := &State{Apps: map[string]*AppState{
-			"myapp": {LastUpdate: &OperationResult{At: time.Now().Add(-1 * time.Hour), Error: "pull failed"}},
+			"myapp": {LastUpdate: OperationResult{At: time.Now().Add(-time.Second), Error: "pull failed"}},
 		}}
 		assert.True(t, s.UpdateDue("myapp"))
 	})
@@ -67,7 +67,7 @@ func TestRecordBackup(t *testing.T) {
 		s := &State{}
 		s.RecordBackup("myapp", nil)
 
-		assert.NotNil(t, s.Apps["myapp"].LastBackup)
+		assert.False(t, s.Apps["myapp"].LastBackup.At.IsZero())
 		assert.Empty(t, s.Apps["myapp"].LastBackup.Error)
 		assert.WithinDuration(t, time.Now(), s.Apps["myapp"].LastBackup.At, time.Second)
 	})
@@ -86,7 +86,7 @@ func TestRecordUpdate(t *testing.T) {
 		s := &State{}
 		s.RecordUpdate("myapp", nil)
 
-		assert.NotNil(t, s.Apps["myapp"].LastUpdate)
+		assert.False(t, s.Apps["myapp"].LastUpdate.At.IsZero())
 		assert.Empty(t, s.Apps["myapp"].LastUpdate.Error)
 	})
 
