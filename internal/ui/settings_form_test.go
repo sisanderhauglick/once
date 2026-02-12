@@ -1,10 +1,7 @@
 package ui
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
@@ -311,50 +308,6 @@ func TestSettingsFormResources_Cancel(t *testing.T) {
 	msg := cmd()
 	_, ok := msg.(SettingsSectionCancelMsg)
 	assert.True(t, ok, "expected SettingsSectionCancelMsg, got %T", msg)
-}
-
-func TestBackupFileName(t *testing.T) {
-	ts := time.Date(2026, 2, 1, 14, 0, 0, 0, time.UTC)
-	assert.Equal(t, "chat-20260201-140000.tar.gz", backupFileName("chat", ts))
-
-	ts2 := time.Date(2025, 12, 25, 9, 5, 30, 0, time.UTC)
-	assert.Equal(t, "myapp-20251225-090530.tar.gz", backupFileName("myapp", ts2))
-}
-
-func TestCreateBackupFile_EmptyPath(t *testing.T) {
-	_, err := createBackupFile("", "chat")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "backup location is required")
-}
-
-func TestCreateBackupFile_RelativePath(t *testing.T) {
-	_, err := createBackupFile("relative/path", "chat")
-	require.ErrorIs(t, err, docker.ErrBackupPathRelative)
-}
-
-func TestCreateBackupFile_CreatesDirectory(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "nested", "backup", "dir")
-
-	f, err := createBackupFile(dir, "chat")
-	require.NoError(t, err)
-	f.Close()
-
-	info, err := os.Stat(dir)
-	require.NoError(t, err)
-	assert.True(t, info.IsDir())
-}
-
-func TestCreateBackupFile_NamesFileCorrectly(t *testing.T) {
-	dir := t.TempDir()
-
-	f, err := createBackupFile(dir, "chat")
-	require.NoError(t, err)
-	f.Close()
-
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
-	assert.Regexp(t, `^chat-\d{8}-\d{6}\.tar\.gz$`, entries[0].Name())
 }
 
 func TestSettingsFormBackups_ActionReadsCurrentFieldValue(t *testing.T) {

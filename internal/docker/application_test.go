@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,6 +108,37 @@ func TestAutoUpdateAndBackupMarshalRoundTrip(t *testing.T) {
 	assert.Equal(t, "/backups", restored.Backup.Path)
 	assert.True(t, restored.Backup.AutoBack)
 	assert.True(t, original.Equal(restored))
+}
+
+func TestBackupToFile_EmptyDir(t *testing.T) {
+	app := &Application{Settings: ApplicationSettings{Name: "chat"}}
+	err := app.BackupToFile(context.Background(), "", "backup.tar.gz")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "backup location is required")
+}
+
+func TestBackupToFile_RelativePath(t *testing.T) {
+	app := &Application{Settings: ApplicationSettings{Name: "chat"}}
+	err := app.BackupToFile(context.Background(), "relative/path", "backup.tar.gz")
+	require.ErrorIs(t, err, ErrBackupPathRelative)
+}
+
+func TestBackupToFile_CreatesDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nested", "backup", "dir")
+
+	err := prepareBackupDir(dir)
+	require.NoError(t, err)
+
+	info, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+}
+
+func TestBackup_EmptyPath(t *testing.T) {
+	app := &Application{Settings: ApplicationSettings{Name: "chat"}}
+	err := app.Backup(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "backup location is required")
 }
 
 func TestVerifyHTTP_Success(t *testing.T) {

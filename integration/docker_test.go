@@ -2,12 +2,13 @@ package integration
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -293,10 +294,14 @@ func TestBackup(t *testing.T) {
 		"sh", "-c", "echo 'test content' > /rails/storage/testfile.txt",
 	})
 
-	var buf bytes.Buffer
-	require.NoError(t, app.Backup(ctx, &buf))
+	backupDir := t.TempDir()
+	require.NoError(t, app.BackupToFile(ctx, backupDir, "backup.tar.gz"))
 
-	entries := extractTarGz(t, &buf)
+	backupFile, err := os.Open(filepath.Join(backupDir, "backup.tar.gz"))
+	require.NoError(t, err)
+	defer backupFile.Close()
+
+	entries := extractTarGz(t, backupFile)
 
 	assert.Contains(t, entries, "once.application.json")
 	var appSettings docker.ApplicationSettings
@@ -344,8 +349,8 @@ func TestRestore(t *testing.T) {
 	require.NoError(t, err)
 	originalSecretKeyBase := vol.SecretKeyBase()
 
-	var backupBuf bytes.Buffer
-	require.NoError(t, app.Backup(ctx, &backupBuf))
+	backupDir := t.TempDir()
+	require.NoError(t, app.BackupToFile(ctx, backupDir, "backup.tar.gz"))
 
 	// Restore to a different namespace
 	ns2, err := docker.NewNamespace("once-restore-dst")
@@ -355,7 +360,11 @@ func TestRestore(t *testing.T) {
 	require.NoError(t, ns2.EnsureNetwork(ctx))
 	require.NoError(t, ns2.Proxy().Boot(ctx, getProxyPorts(t)))
 
-	restoredApp, err := ns2.Restore(ctx, &backupBuf)
+	backupFile, err := os.Open(filepath.Join(backupDir, "backup.tar.gz"))
+	require.NoError(t, err)
+	defer backupFile.Close()
+
+	restoredApp, err := ns2.Restore(ctx, backupFile)
 	require.NoError(t, err)
 
 	// Verify settings were restored
@@ -408,11 +417,15 @@ func TestRestoreExistingAppFails(t *testing.T) {
 	})
 	require.NoError(t, app.Deploy(ctx, nil))
 
-	var backupBuf bytes.Buffer
-	require.NoError(t, app.Backup(ctx, &backupBuf))
+	backupDir := t.TempDir()
+	require.NoError(t, app.BackupToFile(ctx, backupDir, "backup.tar.gz"))
 
 	// Try to restore in the same namespace where the app already exists
-	_, err = ns.Restore(ctx, &backupBuf)
+	backupFile, err := os.Open(filepath.Join(backupDir, "backup.tar.gz"))
+	require.NoError(t, err)
+	defer backupFile.Close()
+
+	_, err = ns.Restore(ctx, backupFile)
 	assert.ErrorIs(t, err, docker.ErrApplicationExists)
 }
 

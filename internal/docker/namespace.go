@@ -155,6 +155,14 @@ func (n *Namespace) ApplicationExists(ctx context.Context, name string) (bool, e
 	return false, nil
 }
 
+func (n *Namespace) LoadState(ctx context.Context) (*State, error) {
+	return n.proxy.LoadState(ctx)
+}
+
+func (n *Namespace) SaveState(ctx context.Context, state *State) error {
+	return n.proxy.SaveState(ctx, state)
+}
+
 func (n *Namespace) Restore(ctx context.Context, r io.Reader) (*Application, error) {
 	appSettings, volSettings, volumeData, err := n.parseBackup(r)
 	if err != nil {

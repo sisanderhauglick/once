@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,6 +18,12 @@ import (
 )
 
 const proxyImage = "basecamp/kamal-proxy"
+
+const (
+	stateFileDir  = "/home/kamal-proxy/.config/kamal-proxy"
+	stateFileName = "once-state.json"
+	stateFilePath = stateFileDir + "/" + stateFileName
+)
 
 const (
 	DefaultHTTPPort    = 80
@@ -166,6 +173,61 @@ func (p *Proxy) Deploy(ctx context.Context, opts DeployOptions) error {
 	}
 
 	return p.Exec(ctx, args)
+}
+
+func (p *Proxy) LoadState(ctx context.Context) (*State, error) {
+	containerName := p.namespace.name + "-proxy"
+
+	reader, _, err := p.namespace.client.CopyFromContainer(ctx, containerName, stateFilePath)
+	if err != nil {
+		return &State{}, nil
+	}
+	defer reader.Close()
+
+	tr := tar.NewReader(reader)
+	if _, err := tr.Next(); err != nil {
+		return &State{}, nil
+	}
+
+	var state State
+	if err := json.NewDecoder(tr).Decode(&state); err != nil {
+		return &State{}, nil
+	}
+
+	return &state, nil
+}
+
+func (p *Proxy) SaveState(ctx context.Context, state *State) error {
+	containerName := p.namespace.name + "-proxy"
+
+	data, err := json.Marshal(state)
+	if err != nil {
+		return fmt.Errorf("marshaling state: %w", err)
+	}
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	header := &tar.Header{
+		Name: stateFileName,
+		Mode: 0644,
+		Size: int64(len(data)),
+	}
+	if err := tw.WriteHeader(header); err != nil {
+		return fmt.Errorf("writing tar header: %w", err)
+	}
+	if _, err := tw.Write(data); err != nil {
+		return fmt.Errorf("writing tar data: %w", err)
+	}
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("closing tar writer: %w", err)
+	}
+
+	if err := p.namespace.client.CopyToContainer(ctx, containerName, stateFileDir, &buf, container.CopyToContainerOptions{}); err != nil {
+		return fmt.Errorf("copying state to container: %w", err)
+	}
+
+	return nil
 }
 
 func (p *Proxy) ExecOutput(ctx context.Context, cmd []string) (string, error) {

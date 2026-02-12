@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -257,45 +259,30 @@ func (a *Application) Restore(ctx context.Context, volSettings ApplicationVolume
 	return nil
 }
 
-func (a *Application) Backup(ctx context.Context, w io.Writer) error {
-	containerName, err := a.ContainerName(ctx)
+func (a *Application) Backup(ctx context.Context) error {
+	if a.Settings.Backup.Path == "" {
+		return fmt.Errorf("backup location is required")
+	}
+
+	return a.BackupToFile(ctx, a.Settings.Backup.Path, a.BackupName())
+}
+
+func (a *Application) BackupName() string {
+	return fmt.Sprintf("%s-%s.tar.gz", a.Settings.Name, time.Now().Format("20060102-150405"))
+}
+
+func (a *Application) BackupToFile(ctx context.Context, dir string, name string) error {
+	if err := prepareBackupDir(dir); err != nil {
+		return err
+	}
+
+	file, err := os.Create(filepath.Join(dir, name))
 	if err != nil {
-		return fmt.Errorf("getting container name: %w", err)
+		return fmt.Errorf("creating backup file: %w", err)
 	}
+	defer file.Close()
 
-	if err := a.runHookScript(ctx, containerName, "pre-backup"); err != nil {
-		return fmt.Errorf("running pre-backup script: %w", err)
-	}
-
-	vol, err := a.Volume(ctx)
-	if err != nil {
-		return fmt.Errorf("getting volume: %w", err)
-	}
-
-	gw := gzip.NewWriter(w)
-	defer gw.Close()
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
-	if err := writeTarEntry(tw, "once.application.json", []byte(a.Settings.Marshal())); err != nil {
-		return fmt.Errorf("writing application settings: %w", err)
-	}
-
-	if err := writeTarEntry(tw, "once.volume.json", []byte(vol.Settings.Marshal())); err != nil {
-		return fmt.Errorf("writing volume settings: %w", err)
-	}
-
-	reader, _, err := a.namespace.client.CopyFromContainer(ctx, containerName, "/rails/storage")
-	if err != nil {
-		return fmt.Errorf("copying from container: %w", err)
-	}
-	defer reader.Close()
-
-	if err := copyTarEntriesWithPrefix(reader, tw, "storage", BackupDataDir); err != nil {
-		return fmt.Errorf("copying volume contents: %w", err)
-	}
-
-	return nil
+	return a.backupToWriter(ctx, file)
 }
 
 func (a *Application) VerifyHTTP(ctx context.Context) error {
@@ -357,6 +344,47 @@ func (a *Application) Destroy(ctx context.Context, destroyVolumes bool) error {
 }
 
 // Private
+
+func (a *Application) backupToWriter(ctx context.Context, w io.Writer) error {
+	containerName, err := a.ContainerName(ctx)
+	if err != nil {
+		return fmt.Errorf("getting container name: %w", err)
+	}
+
+	if err := a.runHookScript(ctx, containerName, "pre-backup"); err != nil {
+		return fmt.Errorf("running pre-backup script: %w", err)
+	}
+
+	vol, err := a.Volume(ctx)
+	if err != nil {
+		return fmt.Errorf("getting volume: %w", err)
+	}
+
+	gw := gzip.NewWriter(w)
+	defer gw.Close()
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	if err := writeTarEntry(tw, "once.application.json", []byte(a.Settings.Marshal())); err != nil {
+		return fmt.Errorf("writing application settings: %w", err)
+	}
+
+	if err := writeTarEntry(tw, "once.volume.json", []byte(vol.Settings.Marshal())); err != nil {
+		return fmt.Errorf("writing volume settings: %w", err)
+	}
+
+	reader, _, err := a.namespace.client.CopyFromContainer(ctx, containerName, "/rails/storage")
+	if err != nil {
+		return fmt.Errorf("copying from container: %w", err)
+	}
+	defer reader.Close()
+
+	if err := copyTarEntriesWithPrefix(reader, tw, "storage", BackupDataDir); err != nil {
+		return fmt.Errorf("copying volume contents: %w", err)
+	}
+
+	return nil
+}
 
 func (a *Application) pullImage(ctx context.Context, progress DeployProgressCallback) error {
 	reader, err := a.namespace.client.ImagePull(ctx, a.Settings.Image, image.PullOptions{})
@@ -589,6 +617,22 @@ func randomID(length int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes)[:length], nil
+}
+
+func prepareBackupDir(dir string) error {
+	if dir == "" {
+		return fmt.Errorf("backup location is required")
+	}
+
+	if !filepath.IsAbs(dir) {
+		return ErrBackupPathRelative
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating backup directory: %w", err)
+	}
+
+	return nil
 }
 
 func writeTarEntry(tw *tar.Writer, name string, data []byte) error {

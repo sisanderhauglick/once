@@ -26,6 +26,7 @@ func NewRootCommand() *RootCommand {
 	}
 	r.cmd.PersistentFlags().StringVarP(&r.namespace, "namespace", "n", docker.DefaultNamespace, "namespace for containers")
 
+	r.cmd.AddCommand(NewBackgroundCommand(r).Command())
 	r.cmd.AddCommand(NewBackupCommand(r).Command())
 	r.cmd.AddCommand(NewDeployCommand(r).Command())
 	r.cmd.AddCommand(NewListCommand(r).Command())

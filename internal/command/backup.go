@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"fmt"
-	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -42,13 +42,10 @@ func (b *BackupCommand) run(ns *docker.Namespace, cmd *cobra.Command, args []str
 		return fmt.Errorf("application %q not found", appName)
 	}
 
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("creating backup file: %w", err)
-	}
-	defer file.Close()
+	dir := filepath.Dir(filename)
+	name := filepath.Base(filename)
 
-	if err := app.Backup(ctx, file); err != nil {
+	if err := app.BackupToFile(ctx, dir, name); err != nil {
 		return fmt.Errorf("backing up application: %w", err)
 	}
 

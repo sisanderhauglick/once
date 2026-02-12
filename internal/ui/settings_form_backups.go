@@ -2,10 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -83,32 +79,5 @@ func (m SettingsFormBackups) View() string {
 // Helpers
 
 func runBackup(app *docker.Application, dir string) error {
-	f, err := createBackupFile(dir, app.Settings.Name)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return app.Backup(context.Background(), f)
-}
-
-func createBackupFile(dir, appName string) (*os.File, error) {
-	if dir == "" {
-		return nil, fmt.Errorf("backup location is required")
-	}
-
-	if !filepath.IsAbs(dir) {
-		return nil, docker.ErrBackupPathRelative
-	}
-
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("creating backup directory: %w", err)
-	}
-
-	filename := backupFileName(appName, time.Now())
-	return os.Create(filepath.Join(dir, filename))
-}
-
-func backupFileName(appName string, t time.Time) string {
-	return fmt.Sprintf("%s-%s.tar.gz", appName, t.Format("20060102-150405"))
+	return app.BackupToFile(context.Background(), dir, app.BackupName())
 }
