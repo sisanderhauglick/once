@@ -83,13 +83,18 @@ func (p DashboardPanel) View(selected bool, toggling bool, width int) string {
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
+	bg := Colors.PanelBg
+	if selected {
+		bg = Colors.PanelSelectedBg
+	}
+
 	body := lipgloss.NewStyle().
-		Background(Colors.PanelBg).
+		Background(bg).
 		Width(width - 1).
 		Padding(0, 1).
 		Height(PanelHeight).
 		Render(content)
-	body = fixBackground(body, Colors.PanelBg)
+	body = fixBackground(body, bg)
 
 	indicator := p.renderIndicator(selected)
 
