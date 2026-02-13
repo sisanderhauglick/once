@@ -259,11 +259,7 @@ func (m Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 }
 
 func (m Dashboard) View() string {
-	titleLine := lipgloss.NewStyle().
-		Foreground(Colors.Border).
-		Width(m.width).
-		Align(lipgloss.Center).
-		Render("- ONCE -")
+	titleLine := m.renderTitle()
 
 	helpView := m.help.View(dashboardKeys)
 	helpLine := Styles.HelpLine(m.width, helpView)
@@ -334,6 +330,19 @@ func (m *Dashboard) scrollToSelection() {
 	} else if panelBottom > m.viewport.YOffset()+m.viewport.Height() {
 		m.viewport.SetYOffset(panelBottom - m.viewport.Height())
 	}
+}
+
+func (m Dashboard) renderTitle() string {
+	label := " ONCE "
+	// 2 chars for end caps ╶ and ╴
+	ruleWidth := m.width - 2
+	if ruleWidth < len(label) {
+		ruleWidth = len(label)
+	}
+	side := (ruleWidth - len(label)) / 2
+	remainder := ruleWidth - len(label) - side*2
+	line := "╶" + strings.Repeat("─", side) + label + strings.Repeat("─", side+remainder) + "╴"
+	return lipgloss.NewStyle().Foreground(Colors.Border).Render(line)
 }
 
 func (m Dashboard) renderSeparator(_ int) string {
