@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
@@ -56,7 +57,6 @@ var ChartColors = struct {
 
 type styles struct {
 	Title         lipgloss.Style
-	SubTitle      lipgloss.Style
 	Label         lipgloss.Style
 	Input         lipgloss.Style
 	Button        lipgloss.Style
@@ -67,9 +67,6 @@ var Styles = styles{
 	Title: lipgloss.NewStyle().
 		Foreground(Colors.Primary).
 		Bold(true),
-	SubTitle: lipgloss.NewStyle().
-		Foreground(Colors.Secondary).
-		Underline(true),
 	Label: lipgloss.NewStyle().
 		Bold(true),
 	Input: lipgloss.NewStyle().
@@ -96,21 +93,16 @@ func (s styles) Focus(base lipgloss.Style, focused bool) lipgloss.Style {
 	return base
 }
 
-func (s styles) TitleBox(width int, title string, extra ...string) string {
-	innerWidth := width - 2
-	titleLine := lipgloss.Place(innerWidth, 1, lipgloss.Center, lipgloss.Center,
-		s.Title.Render(title))
-	lines := []string{titleLine}
-	if len(extra) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, extra...)
+func (s styles) TitleRule(width int, crumbs ...string) string {
+	label := " " + strings.Join(append([]string{"ONCE"}, crumbs...), " · ") + " "
+	ruleWidth := width - 2 // end caps
+	if ruleWidth < len(label) {
+		ruleWidth = len(label)
 	}
-	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(Colors.Border).
-		Width(width).
-		Render(content)
+	side := (ruleWidth - len(label)) / 2
+	remainder := ruleWidth - len(label) - side*2
+	line := "╶" + strings.Repeat("─", side) + label + strings.Repeat("─", side+remainder) + "╴"
+	return lipgloss.NewStyle().Foreground(Colors.Border).Render(line)
 }
 
 func (s styles) HelpLine(width int, content string) string {

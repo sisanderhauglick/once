@@ -42,18 +42,21 @@ func (p DashboardPanel) View(selected bool, toggling bool, width int) string {
 		title = p.app.Settings.Name
 	}
 
-	stateLine := renderStateLine(p.app, toggling)
-
 	innerWidth := width - 3 // 1 indicator + 1 left pad + 1 right pad
 	if innerWidth < 0 {
 		innerWidth = 0
 	}
 
-	titleLine := Styles.Title.Render(title)
+	left := Styles.Title.Render(title)
+	right := renderStateInfo(p.app, toggling)
+	gap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+	}
+	titleLine := left + strings.Repeat(" ", gap) + right
 
 	var lines []string
 	lines = append(lines, titleLine)
-	lines = append(lines, stateLine)
 
 	// Show charts when the app is running and there's enough width
 	chartHeight := 6
@@ -67,6 +70,7 @@ func (p DashboardPanel) View(selected bool, toggling bool, width int) string {
 		errChart := p.errorChart.View(p.fetchErrorData(), chartWidth, chartHeight)
 
 		chartsRow := lipgloss.JoinHorizontal(lipgloss.Top, cpuChart, " ", memChart, " ", reqChart, " ", errChart)
+		lines = append(lines, "")
 		lines = append(lines, chartsRow)
 	}
 
@@ -144,7 +148,7 @@ func (p DashboardPanel) fetchErrorData() []float64 {
 
 // Helpers
 
-func renderStateLine(app *docker.Application, toggling bool) string {
+func renderStateInfo(app *docker.Application, toggling bool) string {
 	var status string
 	var statusColor color.Color
 	if toggling && app.Running {
@@ -162,7 +166,7 @@ func renderStateLine(app *docker.Application, toggling bool) string {
 	}
 
 	stateStyle := lipgloss.NewStyle().Foreground(statusColor)
-	stateDisplay := fmt.Sprintf("State: %s", stateStyle.Render(status))
+	stateDisplay := stateStyle.Render(status)
 
 	if app.Running && !app.RunningSince.IsZero() {
 		stateDisplay += fmt.Sprintf(" (up %s)", formatDuration(time.Since(app.RunningSince)))

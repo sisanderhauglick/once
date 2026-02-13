@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -211,8 +212,7 @@ func (m Settings) Update(msg tea.Msg) (Component, tea.Cmd) {
 }
 
 func (m Settings) View() string {
-	subtitle := Styles.SubTitle.Width(m.width).Align(lipgloss.Center).Render(m.section.Title() + " Settings")
-	titleBox := Styles.TitleBox(m.width, m.app.Settings.URL(), subtitle)
+	titleLine := Styles.TitleRule(m.width, m.app.Settings.Host, strings.ToLower(m.section.Title())+" settings")
 
 	var contentView string
 	switch m.state {
@@ -236,9 +236,9 @@ func (m Settings) View() string {
 		helpLine = Styles.HelpLine(m.width, helpView)
 	}
 
-	titleBoxHeight := lipgloss.Height(titleBox)
+	titleHeight := 2 // title + blank line
 	helpHeight := lipgloss.Height(helpLine)
-	middleHeight := m.height - titleBoxHeight - helpHeight
+	middleHeight := m.height - titleHeight - helpHeight
 
 	centeredContent := lipgloss.Place(
 		m.width,
@@ -248,7 +248,7 @@ func (m Settings) View() string {
 		contentView,
 	)
 
-	return titleBox + centeredContent + helpLine
+	return titleLine + "\n\n" + centeredContent + helpLine
 }
 
 // Private

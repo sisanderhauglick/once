@@ -117,20 +117,28 @@ func (m Logs) Update(msg tea.Msg) (Component, tea.Cmd) {
 }
 
 func (m Logs) View() string {
-	titleBox := m.renderTitleBox()
+	titleLine := Styles.TitleRule(m.width, m.app.Settings.Host, "logs")
 
 	helpView := m.help.View(logsKeys)
 	helpLine := Styles.HelpLine(m.width, helpView)
 
-	titleHeight := lipgloss.Height(titleBox)
+	header := titleLine + "\n"
+	if m.filterActive || m.filterText != "" {
+		m.filterInput.SetWidth(m.width - 2)
+		header += " " + m.filterInput.View() + "\n"
+	} else {
+		header += "\n"
+	}
+
+	headerHeight := lipgloss.Height(header)
 	helpHeight := lipgloss.Height(helpLine)
-	viewportHeight := m.height - titleHeight - helpHeight
+	viewportHeight := m.height - headerHeight - helpHeight
 
 	if viewportHeight > 0 {
 		m.viewport.SetHeight(viewportHeight)
 	}
 
-	return titleBox + "\n" + m.viewport.View() + "\n" + helpLine
+	return header + m.viewport.View() + "\n" + helpLine
 }
 
 // Private
@@ -222,29 +230,12 @@ func (m *Logs) centeredMessage(msg string) string {
 }
 
 func (m *Logs) updateViewportSize() {
-	titleBox := m.renderTitleBox()
-	helpView := m.help.View(logsKeys)
-
-	titleHeight := lipgloss.Height(titleBox)
-	helpHeight := lipgloss.Height(helpView)
-	viewportHeight := m.height - titleHeight - helpHeight - 1
+	headerHeight := 2 // title + blank/filter line
+	helpHeight := 1
+	viewportHeight := m.height - headerHeight - helpHeight
 
 	if viewportHeight > 0 {
 		m.viewport.SetHeight(viewportHeight)
 	}
 	m.viewport.SetWidth(m.width)
-}
-
-func (m *Logs) renderTitleBox() string {
-	innerWidth := m.width - 6
-	if innerWidth < 0 {
-		innerWidth = 0
-	}
-	m.filterInput.SetWidth(innerWidth)
-
-	var extraLines []string
-	if m.filterActive || m.filterText != "" {
-		extraLines = append(extraLines, " "+m.filterInput.View())
-	}
-	return Styles.TitleBox(m.width, m.app.Settings.URL()+" - Logs", extraLines...)
 }
