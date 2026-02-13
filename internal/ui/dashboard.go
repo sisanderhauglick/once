@@ -2,12 +2,15 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	zone "github.com/lrstanley/bubblezone/v2"
 
 	"github.com/basecamp/once/internal/docker"
 	"github.com/basecamp/once/internal/metrics"
@@ -131,6 +134,16 @@ func (m Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 		if cmd := m.help.Update(msg, dashboardKeys); cmd != nil {
 			return m, cmd
 		}
+		if msg.Button == tea.MouseLeft {
+			for i := range m.apps {
+				if zi := zone.Get(panelZoneID(i)); zi != nil && zi.InBounds(msg) {
+					m.selectedIndex = i
+					m.rebuildViewportContent()
+					m.scrollToSelection()
+					return m, nil
+				}
+			}
+		}
 
 	case tea.MouseWheelMsg:
 		var cmd tea.Cmd
@@ -246,14 +259,20 @@ func (m Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 }
 
 func (m Dashboard) View() string {
+	titleLine := lipgloss.NewStyle().
+		Foreground(Colors.Border).
+		Width(m.width).
+		Align(lipgloss.Center).
+		Render("- ONCE -")
+
 	helpView := m.help.View(dashboardKeys)
 	helpLine := Styles.HelpLine(m.width, helpView)
 
 	var content string
 	if m.toggling {
-		content = m.viewport.View() + "\n" + m.progress.View() + "\n" + helpLine
+		content = titleLine + "\n\n" + m.viewport.View() + "\n" + m.progress.View() + "\n" + helpLine
 	} else {
-		content = m.viewport.View() + "\n" + helpLine
+		content = titleLine + "\n\n" + m.viewport.View() + "\n" + helpLine
 	}
 
 	if m.showingMenu {
@@ -280,12 +299,13 @@ func (m Dashboard) runStartStop(app *docker.Application) tea.Cmd {
 }
 
 func (m *Dashboard) updateViewportSize() {
+	titleHeight := 2 // title line + blank line
 	helpHeight := 1
 	progressHeight := 0
 	if m.toggling {
 		progressHeight = 1
 	}
-	vpHeight := m.height - helpHeight - progressHeight
+	vpHeight := m.height - titleHeight - helpHeight - progressHeight
 	if vpHeight < 0 {
 		vpHeight = 0
 	}
@@ -300,7 +320,8 @@ func (m *Dashboard) rebuildViewportContent() {
 			sections = append(sections, m.renderSeparator(i-1))
 		}
 		toggling := m.toggling && m.togglingApp == m.apps[i].Settings.Name
-		sections = append(sections, m.panels[i].View(i == m.selectedIndex, toggling, m.width))
+		panel := m.panels[i].View(i == m.selectedIndex, toggling, m.width)
+		sections = append(sections, zone.Mark(panelZoneID(i), panel))
 	}
 	m.viewport.SetContent(strings.Join(sections, "\n"))
 }
@@ -317,6 +338,10 @@ func (m *Dashboard) scrollToSelection() {
 
 func (m Dashboard) renderSeparator(_ int) string {
 	return ""
+}
+
+func panelZoneID(index int) string {
+	return fmt.Sprintf("dashboard_%d", index)
 }
 
 func (m *Dashboard) buildPanels() {
