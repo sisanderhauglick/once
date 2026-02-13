@@ -80,6 +80,18 @@ func (n *Namespace) Applications() []*Application {
 	return n.applications
 }
 
+func (n *Namespace) UniqueName(base string) string {
+	if n.Application(base) == nil {
+		return base
+	}
+	for i := 1; ; i++ {
+		candidate := fmt.Sprintf("%s-%d", base, i)
+		if n.Application(candidate) == nil {
+			return candidate
+		}
+	}
+}
+
 func (n *Namespace) Setup(ctx context.Context) error {
 	if err := n.EnsureNetwork(ctx); err != nil {
 		return err

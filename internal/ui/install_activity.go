@@ -159,7 +159,7 @@ func (m InstallActivity) runInstall() {
 
 	m.progressChan <- installProgressMsg{stage: stageDownloading, percentage: 0}
 
-	appName := docker.NameFromImageRef(m.imageRef)
+	appName := m.namespace.UniqueName(docker.NameFromImageRef(m.imageRef))
 	hostname := m.hostname
 	if hostname == "" {
 		hostname = appName + ".localhost"
