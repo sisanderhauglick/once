@@ -12,9 +12,9 @@ import (
 )
 
 type RootCommand struct {
-	cmd       *cobra.Command
-	namespace string
-	cleanup   func()
+	cmd         *cobra.Command
+	namespace   string
+	closeLogger func()
 }
 
 func NewRootCommand() *RootCommand {
@@ -27,16 +27,16 @@ func NewRootCommand() *RootCommand {
 			HiddenDefaultCmd: true,
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			cleanup, err := logging.SetupFile()
+			closeLogger, err := logging.SetupFile()
 			if err != nil {
 				return fmt.Errorf("setting up logging: %w", err)
 			}
-			r.cleanup = cleanup
+			r.closeLogger = closeLogger
 			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if r.cleanup != nil {
-				r.cleanup()
+			if r.closeLogger != nil {
+				r.closeLogger()
 			}
 		},
 		RunE: WithNamespace(func(ns *docker.Namespace, cmd *cobra.Command, args []string) error {
