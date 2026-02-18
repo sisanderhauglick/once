@@ -61,6 +61,11 @@ func (rl *responseLogger) Write(b []byte) (int, error) {
 	return n, err
 }
 
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
 func newInstallScriptHandler(template *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		args := InstalScriptArgs{
@@ -80,10 +85,7 @@ func main() {
 		panic(err)
 	}
 
-	http.HandleFunc("GET /up", withLogging(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
+	http.HandleFunc("GET /up", healthHandler)
 	http.HandleFunc("GET /{image...}", withLogging(newInstallScriptHandler(template)))
 
 	port := os.Getenv("HTTP_PORT")
