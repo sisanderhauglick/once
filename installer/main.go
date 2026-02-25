@@ -8,6 +8,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/distribution/reference"
 )
 
 //go:embed templates/*
@@ -68,8 +70,14 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func newInstallScriptHandler(template *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		imageRef := r.PathValue("image")
+		if _, err := reference.ParseNormalizedNamed(imageRef); err != nil {
+			http.Error(w, "invalid image reference", http.StatusBadRequest)
+			return
+		}
+
 		args := InstalScriptArgs{
-			ImageRef: r.PathValue("image"),
+			ImageRef: imageRef,
 		}
 
 		err := template.ExecuteTemplate(w, "install.sh", args)
