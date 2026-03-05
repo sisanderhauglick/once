@@ -25,6 +25,17 @@ func TestChartView(t *testing.T) {
 	assert.NotEmpty(t, output)
 }
 
+func TestPeakValue(t *testing.T) {
+	data := []float64{10, 50, 30, 80, 20, 60, 40}
+
+	assert.Equal(t, 80.0, peakValue(data, 7))
+	assert.Equal(t, 60.0, peakValue(data, 2))
+	assert.Equal(t, 40.0, peakValue(data, 1))
+	assert.Equal(t, 0.0, peakValue(data, 0))
+	assert.Equal(t, 0.0, peakValue(nil, 5))
+	assert.Equal(t, 80.0, peakValue(data, 100))
+}
+
 func TestSlidingSum(t *testing.T) {
 	data := []float64{1, 2, 3, 4, 5}
 	result := SlidingSum(data, 2)

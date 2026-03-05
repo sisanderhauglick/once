@@ -14,18 +14,17 @@ import (
 	"github.com/basecamp/once/internal/userstats"
 )
 
-const PanelHeight = 7
+const PanelHeight = 6
 const StoppedPanelHeight = 2
+
+const containerStatsBuffer = 10
+const peakWindow = containerStatsBuffer
 
 type DashboardPanel struct {
 	app           docker.Application
 	scraper       *metrics.MetricsScraper
 	dockerScraper *docker.Scraper
 	userStats     *userstats.Reader
-	cpuChart      Chart
-	memoryChart   Chart
-	requestChart  Chart
-	errorChart    Chart
 }
 
 func NewDashboardPanel(app *docker.Application, scraper *metrics.MetricsScraper, dockerScraper *docker.Scraper, userStats *userstats.Reader) DashboardPanel {
@@ -34,63 +33,42 @@ func NewDashboardPanel(app *docker.Application, scraper *metrics.MetricsScraper,
 		scraper:       scraper,
 		dockerScraper: dockerScraper,
 		userStats:     userStats,
-		cpuChart:      NewChart("CPU", UnitPercent),
-		memoryChart:   NewChart("Memory", UnitBytes),
-		requestChart:  NewChart("Req/min", UnitCount),
-		errorChart:    NewChart("Err/min", UnitCount),
 	}
 }
 
-func (p DashboardPanel) DataMaxes() (cpu, memory, requests, errors float64) {
+func (p DashboardPanel) DataMaxes() (traffic float64) {
 	if !p.app.Running {
 		return
 	}
 
-	cpuData, memData := p.fetchDockerData()
-	reqData, errData := p.fetchMetricsData()
-
-	return maxValue(cpuData), maxValue(memData), maxValue(reqData), maxValue(errData)
+	reqData, _ := p.fetchMetricsData()
+	return maxValue(reqData)
 }
 
 func (p DashboardPanel) View(selected bool, toggling bool, width int, scales DashboardScales) string {
 	innerWidth := max(width-3, 0) // 1 indicator + 1 left pad + 1 right pad
 
+	var cards [3]MetricCard
+	if p.app.Running {
+		cards = p.buildMetricCards(scales)
+	}
+
 	url := Styles.Title.Hyperlink(p.app.URL()).Render(p.app.Settings.Host)
 	name := lipgloss.NewStyle().Foreground(Colors.Border).Render("(" + docker.NameFromImageRef(p.app.Settings.Image) + ")")
-	left := url + " " + name
-	if label := p.userStatsLabel(); label != "" {
-		left += " " + lipgloss.NewStyle().Foreground(Colors.Border).Render(label)
-	}
+	badge := p.renderHealthBadge(cards)
+	left := badge + " " + url + " " + name
 	right := renderStateInfo(&p.app, toggling)
-	gap := max(innerWidth-1-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	titleLine := " " + left + strings.Repeat(" ", gap) + right
+	gap := max(innerWidth-2-lipgloss.Width(left)-lipgloss.Width(right), 1)
+	titleLine := " " + left + strings.Repeat(" ", gap) + right + " "
 
 	var lines []string
 	lines = append(lines, titleLine)
 
-	// Show charts when the app is running and there's enough width
-	chartHeight := 6
-	minChartWidth := 10
-	if p.app.Running && innerWidth >= minChartWidth*4+3 {
-		baseWidth := (innerWidth - 3) / 4 // 3 single-char gaps between 4 charts
-		remainder := (innerWidth - 3) % 4
-		chartW := func(i int) int {
-			if i < remainder {
-				return baseWidth + 1
-			}
-			return baseWidth
-		}
-
-		cpuData, memData := p.fetchDockerData()
-		reqData, errData := p.fetchMetricsData()
-
-		cpuChart := p.cpuChart.View(cpuData, chartW(0), chartHeight, scales.CPU)
-		memChart := p.memoryChart.View(memData, chartW(1), chartHeight, scales.Memory)
-		reqChart := p.requestChart.View(reqData, chartW(2), chartHeight, scales.Requests)
-		errChart := p.errorChart.View(errData, chartW(3), chartHeight, scales.Errors)
-
-		chartsRow := lipgloss.JoinHorizontal(lipgloss.Top, cpuChart, " ", memChart, " ", reqChart, " ", errChart)
-		lines = append(lines, chartsRow)
+	// Show cards when the app is running and there's enough width
+	minCardWidth := 8
+	if p.app.Running && innerWidth >= minCardWidth*4+3 {
+		cardViews := p.renderCards(innerWidth, cards)
+		lines = append(lines, cardViews)
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -130,16 +108,106 @@ func (p DashboardPanel) Height() int {
 
 // Private
 
-func (p DashboardPanel) userStatsLabel() string {
-	if p.userStats == nil {
-		return ""
+func (p DashboardPanel) renderHealthBadge(cards [3]MetricCard) string {
+	if !p.app.Running {
+		return lipgloss.NewStyle().Foreground(Colors.Border).Render("●")
 	}
-	stats := p.userStats.Fetch(p.app.Settings.Name)
-	if stats == nil || (stats.UniqueUsers24h == 0 && stats.UniqueUsers7d == 0) {
-		return ""
+
+	worst := healthNormal
+	for _, c := range cards {
+		worst = max(worst, c.Health())
 	}
-	return fmt.Sprintf("%d today · %d this week", stats.UniqueUsers24h, stats.UniqueUsers7d)
+
+	return lipgloss.NewStyle().Foreground(worst.Color()).Render("●")
 }
+
+func (p DashboardPanel) renderCards(innerWidth int, cards [3]MetricCard) string {
+	gaps := 3 // 3 single-char gaps between 4 cards
+	visitsWidth := (innerWidth - gaps) / 3
+	remaining := (innerWidth - gaps) - visitsWidth
+	metricBase := remaining / 3
+	metricRem := remaining % 3
+
+	metricWidth := func(i int) int {
+		if i < metricRem {
+			return metricBase + 1
+		}
+		return metricBase
+	}
+
+	visitsCard := p.renderVisitsCard(visitsWidth)
+	cpuCard := cards[0].View(metricWidth(0))
+	memCard := cards[1].View(metricWidth(1))
+	trafficCard := cards[2].View(metricWidth(2))
+
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		visitsCard, " ", cpuCard, " ", memCard, " ", trafficCard)
+}
+
+func (p DashboardPanel) buildMetricCards(scales DashboardScales) [3]MetricCard {
+	cpuData, memData := p.fetchDockerData()
+	reqData, errData := p.fetchMetricsData()
+
+	cpuScale := scales.CPU
+	cpuLimit := ""
+	if c := p.app.Settings.Resources.CPUs; c > 0 {
+		cpuScale = ChartScale{max: float64(c) * 100}
+		cpuLimit = UnitPercent.Format(float64(c) * 100)
+	}
+
+	memScale := scales.Memory
+	memLimit := ""
+	if mb := p.app.Settings.Resources.MemoryMB; mb > 0 {
+		memScale = ChartScale{max: float64(mb) * 1024 * 1024}
+		memLimit = UnitBytes.Format(float64(mb) * 1024 * 1024)
+	}
+
+	currentReq := lastValue(reqData)
+	currentErr := lastValue(errData)
+	errPct := 0.0
+	if currentReq > 0 {
+		errPct = currentErr / currentReq * 100
+	}
+
+	return [3]MetricCard{
+		NewMetricCard("CPU", cpuData, cpuScale, UnitPercent, cpuLimit, 60, 85),
+		NewMetricCard("Memory", memData, memScale, UnitBytes, memLimit, 60, 85),
+		NewTrafficCard(reqData, errData, scales.Traffic, errPct, 3, 5),
+	}
+}
+
+func (p DashboardPanel) renderVisitsCard(width int) string {
+	borderStyle := lipgloss.NewStyle().Foreground(Colors.Border)
+	inner := width - 2
+
+	topFill := max(inner-1-len("Visits"), 0)
+	topLine := borderStyle.Render("╭─Visits" + strings.Repeat("─", topFill) + "╮")
+	bottomLine := borderStyle.Render("╰" + strings.Repeat("─", inner) + "╯")
+
+	left := borderStyle.Render("│")
+	right := borderStyle.Render("│")
+
+	var dayLine, weekLine string
+	if p.userStats != nil {
+		stats := p.userStats.Fetch(p.app.Settings.Name)
+		if stats != nil && (stats.UniqueUsers24h > 0 || stats.UniqueUsers7d > 0) {
+			noun := "visitors"
+			if stats.UniqueUsers24h == 1 {
+				noun = "visitor"
+			}
+			dayLine = fmt.Sprintf(" %d %s today", stats.UniqueUsers24h, noun)
+			weekLine = fmt.Sprintf(" %d this week", stats.UniqueUsers7d)
+		}
+	}
+
+	contentLines := make([]string, 3)
+	contentLines[0] = left + strings.Repeat(" ", inner) + right
+	contentLines[1] = left + padOrTruncate(dayLine, inner) + right
+	contentLines[2] = left + padOrTruncate(weekLine, inner) + right
+
+	return topLine + "\n" + strings.Join(contentLines, "\n") + "\n" + bottomLine
+}
+
 
 func (p DashboardPanel) renderTopTransition(selected bool, width int) string {
 	if !selected {
@@ -179,7 +247,7 @@ func (p DashboardPanel) renderIndicator(selected bool) string {
 }
 
 func (p DashboardPanel) fetchDockerData() (cpu, memory []float64) {
-	samples := p.dockerScraper.Fetch(p.app.Settings.Name, ChartHistoryLength)
+	samples := p.dockerScraper.Fetch(p.app.Settings.Name, containerStatsBuffer)
 	cpu = make([]float64, len(samples))
 	memory = make([]float64, len(samples))
 	for i, s := range samples {
@@ -192,7 +260,7 @@ func (p DashboardPanel) fetchDockerData() (cpu, memory []float64) {
 }
 
 func (p DashboardPanel) fetchMetricsData() (requests, errors []float64) {
-	samples := p.scraper.Fetch(p.app.Settings.Name, ChartHistoryLength)
+	samples := p.scraper.Fetch(p.app.Settings.Name, ChartSlidingWindow)
 	requests = make([]float64, len(samples))
 	errors = make([]float64, len(samples))
 	for i, s := range samples {
@@ -226,11 +294,45 @@ func renderStateInfo(app *docker.Application, toggling bool) string {
 	stateStyle := lipgloss.NewStyle().Foreground(statusColor)
 	stateDisplay := stateStyle.Render(status)
 
-	if app.Running && !app.RunningSince.IsZero() {
-		stateDisplay += fmt.Sprintf(" (up %s)", formatDuration(time.Since(app.RunningSince)))
+	return stateDisplay
+}
+
+func renderBar(current, peak, scaleMax float64, fillColor color.Color, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	filled := int(current / scaleMax * float64(width))
+	filled = min(filled, width)
+
+	peakPos := int(peak / scaleMax * float64(width))
+	peakPos = min(peakPos, width-1)
+
+	filledStyle := lipgloss.NewStyle().Foreground(fillColor)
+	emptyStyle := lipgloss.NewStyle().Foreground(Colors.Border)
+	peakStyle := lipgloss.NewStyle().Foreground(chartGradientTop)
+
+	if peak > 0 {
+		peakPos = max(peakPos, filled-1)
+		peakPos = min(peakPos, width-1)
+		fillChars := min(filled, peakPos)
+		gap := peakPos - fillChars
+		after := width - peakPos - 1
+		return filledStyle.Render(strings.Repeat("⣿", fillChars)) +
+			emptyStyle.Render(strings.Repeat("⣿", gap)) +
+			peakStyle.Render("⣿") +
+			emptyStyle.Render(strings.Repeat("⣿", max(after, 0)))
 	}
 
-	return stateDisplay
+	empty := width - filled
+	return filledStyle.Render(strings.Repeat("⣿", filled)) +
+		emptyStyle.Render(strings.Repeat("⣿", empty))
+}
+
+func lastValue(data []float64) float64 {
+	if len(data) == 0 {
+		return 0
+	}
+	return data[len(data)-1]
 }
 
 func formatDuration(d time.Duration) string {

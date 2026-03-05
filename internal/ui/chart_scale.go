@@ -15,7 +15,8 @@ func (s ChartScale) Max() float64 {
 }
 
 type DashboardScales struct {
-	CPU, Memory, Requests, Errors ChartScale
+	CPU, Memory ChartScale // fixed scales from host hardware
+	Traffic     ChartScale // shared across panels
 }
 
 // Helpers

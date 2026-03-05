@@ -84,11 +84,11 @@ func NewApp(ns *docker.Namespace, installImageRef string) *App {
 
 	scraper := metrics.NewMetricsScraper(metrics.ScraperSettings{
 		Port:       metricsPort,
-		BufferSize: ChartHistoryLength,
+		BufferSize: ChartSlidingWindow,
 	})
 
 	dockerScraper := docker.NewScraper(ns, docker.ScraperSettings{
-		BufferSize: ChartHistoryLength,
+		BufferSize: containerStatsBuffer,
 	})
 
 	diskPath, err := ns.DockerRootDir(ctx)

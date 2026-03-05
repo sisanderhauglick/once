@@ -342,19 +342,15 @@ func (m *Dashboard) rebuildViewportContent() {
 }
 
 func (m *Dashboard) computeScales() DashboardScales {
-	var maxCPU, maxMem, maxReq, maxErr float64
+	var maxTraffic float64
 	for i := range m.panels {
-		cpu, mem, req, err := m.panels[i].DataMaxes()
-		maxCPU = max(maxCPU, cpu)
-		maxMem = max(maxMem, mem)
-		maxReq = max(maxReq, req)
-		maxErr = max(maxErr, err)
+		traffic := m.panels[i].DataMaxes()
+		maxTraffic = max(maxTraffic, traffic)
 	}
 	return DashboardScales{
-		CPU:      NewChartScale(UnitPercent, maxCPU),
-		Memory:   NewChartScale(UnitBytes, maxMem),
-		Requests: NewChartScale(UnitCount, maxReq),
-		Errors:   NewChartScale(UnitCount, maxErr),
+		CPU:     ChartScale{max: float64(m.systemScraper.NumCPUs()) * 100},
+		Memory:  ChartScale{max: float64(m.systemScraper.MemTotal())},
+		Traffic: NewChartScale(UnitCount, maxTraffic),
 	}
 }
 

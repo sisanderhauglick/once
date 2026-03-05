@@ -5,8 +5,6 @@ import (
 	"slices"
 	"strings"
 
-	"image/color"
-
 	"charm.land/lipgloss/v2"
 
 	"github.com/basecamp/once/internal/system"
@@ -152,7 +150,7 @@ func (h DashboardHeader) renderDiskGauge(width int) string {
 	filled := int(pct / 100 * float64(barWidth))
 	filled = min(filled, barWidth)
 	empty := barWidth - filled
-	fillColor := diskBarColor(pct)
+	fillColor := barColor(pct)
 	filledPart := lipgloss.NewStyle().Foreground(fillColor).Render(strings.Repeat("⣿", filled))
 	emptyPart := lipgloss.NewStyle().Foreground(Colors.Border).Render(strings.Repeat("⣿", empty))
 	bar := "  " + filledPart + emptyPart
@@ -177,25 +175,6 @@ func (h DashboardHeader) renderDiskGauge(width int) string {
 }
 
 // Helpers
-
-func padOrTruncate(s string, width int) string {
-	w := lipgloss.Width(s)
-	if w >= width {
-		return s[:width]
-	}
-	return s + strings.Repeat(" ", width-w)
-}
-
-func diskBarColor(pct float64) color.Color {
-	switch {
-	case pct > 85:
-		return Colors.Error
-	case pct >= 60:
-		return chartGradientTop
-	default:
-		return chartGradientBottom
-	}
-}
 
 func formatDiskSize(bytes uint64) string {
 	const (

@@ -247,3 +247,30 @@ func maxValue(data []float64) float64 {
 	}
 	return m
 }
+
+func peakValue(data []float64, window int) float64 {
+	if len(data) == 0 || window <= 0 {
+		return 0
+	}
+	start := max(0, len(data)-window)
+	return maxValue(data[start:])
+}
+
+func barColor(pct float64) color.Color {
+	switch {
+	case pct > 85:
+		return Colors.Error
+	case pct >= 60:
+		return chartGradientTop
+	default:
+		return chartGradientBottom
+	}
+}
+
+func padOrTruncate(s string, width int) string {
+	w := lipgloss.Width(s)
+	if w >= width {
+		return s[:width]
+	}
+	return s + strings.Repeat(" ", width-w)
+}
