@@ -49,12 +49,12 @@ func TestInstallScriptHandler_RejectsShellInjection(t *testing.T) {
 	}
 }
 
-func TestInstallScriptHandler_RejectsEmpty(t *testing.T) {
+func TestInstallScriptHandler_EmptyImageRef(t *testing.T) {
 	handler := testHandler()
 
 	w := serve(handler, "")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for empty ref, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for empty ref, got %d", w.Code)
 	}
 }
 

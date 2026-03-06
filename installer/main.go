@@ -77,9 +77,11 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func newInstallScriptHandler(template *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		imageRef := r.PathValue("image")
-		if _, err := reference.ParseNormalizedNamed(imageRef); err != nil {
-			http.Error(w, "invalid image reference", http.StatusBadRequest)
-			return
+		if imageRef != "" {
+			if _, err := reference.ParseNormalizedNamed(imageRef); err != nil {
+				http.Error(w, "invalid image reference", http.StatusBadRequest)
+				return
+			}
 		}
 
 		args := InstallScriptArgs{
