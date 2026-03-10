@@ -4,12 +4,12 @@ import "time"
 
 type State struct {
 	Apps           map[string]*AppState `json:"apps"`
-	LastSelfUpdate OperationResult      `json:"last_self_update"`
+	LastSelfUpdate OperationResult      `json:"lastSelfUpdate"`
 }
 
 type AppState struct {
-	LastBackup OperationResult `json:"last_backup"`
-	LastUpdate OperationResult `json:"last_update"`
+	LastBackup OperationResult `json:"lastBackup"`
+	LastUpdate OperationResult `json:"lastUpdate"`
 }
 
 func (as *AppState) LastBackupResult() *OperationResult {

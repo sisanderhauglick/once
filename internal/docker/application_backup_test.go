@@ -159,8 +159,8 @@ func TestWriteTarEntryAndCopyRoundTrip(t *testing.T) {
 	gw := gzip.NewWriter(&backupBuf)
 	tw := tar.NewWriter(gw)
 
-	require.NoError(t, writeTarEntry(tw, backupAppSettingsEntry, []byte(`{"n":"app"}`)))
-	require.NoError(t, writeTarEntry(tw, backupVolSettingsEntry, []byte(`{"skb":"secret"}`)))
+	require.NoError(t, writeTarEntry(tw, backupAppSettingsEntry, []byte(`{"name":"app"}`)))
+	require.NoError(t, writeTarEntry(tw, backupVolSettingsEntry, []byte(`{"secretKeyBase":"secret"}`)))
 	require.NoError(t, writeTarEntry(tw, "data/file.txt", []byte("file content")))
 
 	require.NoError(t, tw.Close())

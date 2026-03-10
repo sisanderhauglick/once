@@ -15,7 +15,7 @@ import (
 var ErrVolumeNotFound = errors.New("volume not found")
 
 type ApplicationVolumeSettings struct {
-	SecretKeyBase string `json:"skb"`
+	SecretKeyBase string `json:"secretKeyBase"`
 }
 
 func UnmarshalApplicationVolumeSettings(s string) (ApplicationVolumeSettings, error) {

@@ -10,7 +10,7 @@ import (
 
 const (
 	backupsPathField = iota
-	backupsAutoBackField
+	backupsAutoBackupField
 )
 
 type SettingsFormBackups struct {
@@ -21,14 +21,14 @@ func NewSettingsFormBackups(app *docker.Application, lastResult *docker.Operatio
 	pathField := NewTextField("/path/to/backups")
 	pathField.SetValue(app.Settings.Backup.Path)
 
-	autoBackField := NewCheckboxField("Automatically create backups", app.Settings.Backup.AutoBack)
+	autoBackupField := NewCheckboxField("Automatically create backups", app.Settings.Backup.AutoBackup)
 
 	m := SettingsFormBackups{
 		settingsFormBase: settingsFormBase{
 			title: "Backups",
 			form: NewForm("Done",
 				FormItem{Label: "Backup location", Field: pathField},
-				FormItem{Label: "Backups", Field: autoBackField},
+				FormItem{Label: "Backups", Field: autoBackupField},
 			),
 		},
 	}
@@ -45,7 +45,7 @@ func NewSettingsFormBackups(app *docker.Application, lastResult *docker.Operatio
 	m.form.OnSubmit(func(f *Form) tea.Cmd {
 		s := app.Settings
 		s.Backup.Path = f.TextField(backupsPathField).Value()
-		s.Backup.AutoBack = f.CheckboxField(backupsAutoBackField).Checked()
+		s.Backup.AutoBackup = f.CheckboxField(backupsAutoBackupField).Checked()
 		return func() tea.Msg { return SettingsSectionSubmitMsg{Settings: s} }
 	})
 	m.form.OnCancel(func(f *Form) tea.Cmd {

@@ -119,7 +119,7 @@ func (r *Runner) checkUpdate(ctx context.Context, app *docker.Application, state
 }
 
 func (r *Runner) checkBackup(ctx context.Context, app *docker.Application, state *docker.State) {
-	if !app.Settings.Backup.AutoBack {
+	if !app.Settings.Backup.AutoBackup {
 		return
 	}
 	if !state.BackupDue(app.Settings.Name) {

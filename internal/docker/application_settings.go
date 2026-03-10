@@ -1,13 +1,16 @@
 package docker
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strconv"
+)
 
 type SMTPSettings struct {
-	Server   string `json:"s,omitempty"`
-	Port     string `json:"p,omitempty"`
-	Username string `json:"u,omitempty"`
-	Password string `json:"pw,omitempty"`
-	From     string `json:"f,omitempty"`
+	Server   string `json:"server,omitempty"`
+	Port     string `json:"port,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	From     string `json:"from,omitempty"`
 }
 
 func (s SMTPSettings) BuildEnv() []string {
@@ -25,24 +28,24 @@ func (s SMTPSettings) BuildEnv() []string {
 
 type ContainerResources struct {
 	CPUs     int `json:"cpus,omitempty"`
-	MemoryMB int `json:"mem,omitempty"`
+	MemoryMB int `json:"memoryMB,omitempty"`
 }
 
 type BackupSettings struct {
-	Path     string `json:"p,omitempty"`
-	AutoBack bool   `json:"a,omitempty"`
+	Path       string `json:"path,omitempty"`
+	AutoBackup bool   `json:"autoBackup,omitempty"`
 }
 
 type ApplicationSettings struct {
-	Name       string             `json:"n"`
-	Image      string             `json:"i"`
-	Host       string             `json:"h"`
-	DisableTLS bool               `json:"dt"`
+	Name       string             `json:"name"`
+	Image      string             `json:"image"`
+	Host       string             `json:"host"`
+	DisableTLS bool               `json:"disableTLS"`
 	EnvVars    map[string]string  `json:"env"`
-	SMTP       SMTPSettings       `json:"sm"`
-	Resources  ContainerResources `json:"res"`
-	AutoUpdate bool               `json:"au"`
-	Backup     BackupSettings     `json:"bk"`
+	SMTP       SMTPSettings       `json:"smtp"`
+	Resources  ContainerResources `json:"resources"`
+	AutoUpdate bool               `json:"autoUpdate"`
+	Backup     BackupSettings     `json:"backup"`
 }
 
 func UnmarshalApplicationSettings(s string) (ApplicationSettings, error) {

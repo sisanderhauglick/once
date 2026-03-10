@@ -36,9 +36,9 @@ const (
 )
 
 type ProxySettings struct {
-	HTTPPort    int `json:"hp"`
-	HTTPSPort   int `json:"hsp"`
-	MetricsPort int `json:"mp"`
+	HTTPPort    int `json:"httpPort"`
+	HTTPSPort   int `json:"httpsPort"`
+	MetricsPort int `json:"metricsPort"`
 }
 
 func UnmarshalProxySettings(s string) (ProxySettings, error) {

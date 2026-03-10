@@ -375,7 +375,7 @@ func TestSettingsFormBackups_Submit(t *testing.T) {
 	submitMsg, ok := msg.(SettingsSectionSubmitMsg)
 	require.True(t, ok, "expected SettingsSectionSubmitMsg, got %T", msg)
 	assert.Equal(t, "/my/backups", submitMsg.Settings.Backup.Path)
-	assert.True(t, submitMsg.Settings.Backup.AutoBack)
+	assert.True(t, submitMsg.Settings.Backup.AutoBackup)
 }
 
 // Helpers
