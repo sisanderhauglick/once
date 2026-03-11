@@ -2,14 +2,18 @@ service: once-installer
 image: basecamp/once-installer
 
 servers:
-  - 159.65.17.223
+  - once-installer-101
+  - once-installer-102
 
 proxy:
-  host: once.kmcconnell.dev
+  host: get.once.com
   ssl: true
 
 registry:
   server: localhost:5555
+
+ssh:
+  user: app
 
 builder:
   arch: amd64
