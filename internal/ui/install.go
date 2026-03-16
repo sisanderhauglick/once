@@ -132,7 +132,7 @@ func (m Install) Update(msg tea.Msg) (Component, tea.Cmd) {
 		return m, nil
 
 	case logoShineStartMsg, logoShineStepMsg:
-		if m.showLogo() && m.state != installStateActivity {
+		if m.logo != nil {
 			return m, m.logo.Update(msg)
 		}
 		return m, nil
@@ -212,9 +212,6 @@ func (m Install) Update(msg tea.Msg) (Component, tea.Cmd) {
 			m.state = m.imageErrorState()
 		} else {
 			m.state = installStateHostname
-		}
-		if m.showLogo() {
-			return m, m.logo.Init()
 		}
 		return m, nil
 
