@@ -103,7 +103,7 @@ This means backups are always consistent in either case, but the hook gives the 
 An example of using `pre-backup` on a SQLite-based application would be to use SQLite's online backup feature to take a safe consistent copy of the database.
 
 - `/hooks/post-restore` -- The inverse of `pre-backup`, `post-restore` will be called after restoring the data from a backup, but before booting the application.
-If an application needs to do any cleanup, such as move or renaqme files generated during `pre-backup`, it can do it in this hook.
+If an application needs to do any cleanup, such as move or rename files generated during `pre-backup`, it can do it in this hook.
 
 ### Environment variables
 
