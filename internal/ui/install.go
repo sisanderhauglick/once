@@ -197,7 +197,7 @@ func (m Install) Update(msg tea.Msg) (Component, tea.Cmd) {
 		return m, nil
 
 	case InstallFormSubmitMsg:
-		if m.namespace != nil && m.namespace.HostInUse(msg.Hostname) {
+		if m.namespace.HostInUse(msg.Hostname) {
 			m.err = docker.ErrHostnameInUse
 			return m, nil
 		}
@@ -349,7 +349,7 @@ func (m Install) imageErrorState() installState {
 }
 
 func (m Install) showLogo() bool {
-	return m.namespace == nil || len(m.namespace.Applications()) == 0
+	return len(m.namespace.Applications()) == 0
 }
 
 func (m Install) middleHeight() int {
