@@ -48,6 +48,7 @@ func (d *deployCommand) run(ctx context.Context, ns *docker.Namespace, cmd *cobr
 	}
 
 	settings, err := d.flags.buildSettings(imageRef, host)
+
 	if err != nil {
 		return err
 	}

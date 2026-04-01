@@ -58,6 +58,12 @@ func TestParseEnvVars(t *testing.T) {
 	})
 }
 
+func TestBuildSettingsImageRequired(t *testing.T) {
+	f := &settingsFlags{}
+	_, err := f.buildSettings("", "app.example.com")
+	assert.ErrorIs(t, err, docker.ErrImageRequired)
+}
+
 func TestBuildSettingsAutoBackupRequiresPath(t *testing.T) {
 	t.Run("auto-backup without path", func(t *testing.T) {
 		f := &settingsFlags{autoBackup: true}

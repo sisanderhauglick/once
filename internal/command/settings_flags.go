@@ -82,8 +82,10 @@ func (f *settingsFlags) buildSettings(image, host string) (docker.ApplicationSet
 	return s, nil
 }
 
-func (f *settingsFlags) applyChanges(cmd *cobra.Command, existing docker.ApplicationSettings) (docker.ApplicationSettings, error) {
+func (f *settingsFlags) applyChanges(cmd *cobra.Command, existing docker.ApplicationSettings, image string) (docker.ApplicationSettings, error) {
 	s := existing
+
+	s.Image = image
 
 	if cmd.Flags().Changed("host") {
 		s.Host = f.host

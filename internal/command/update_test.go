@@ -48,7 +48,7 @@ func TestApplyChanges(t *testing.T) {
 	t.Run("no flags changed returns existing", func(t *testing.T) {
 		f := &settingsFlags{}
 		cmd := newCmd()
-		result, err := f.applyChanges(cmd, existing)
+		result, err := f.applyChanges(cmd, existing, existing.Image)
 		require.NoError(t, err)
 		assert.True(t, existing.Equal(result))
 	})
@@ -58,7 +58,7 @@ func TestApplyChanges(t *testing.T) {
 		cmd := newCmd()
 		require.NoError(t, cmd.Flags().Set("memory", "2048"))
 
-		result, err := f.applyChanges(cmd, existing)
+		result, err := f.applyChanges(cmd, existing, existing.Image)
 		require.NoError(t, err)
 		assert.Equal(t, 2048, result.Resources.MemoryMB)
 		assert.Equal(t, existing.Resources.CPUs, result.Resources.CPUs)
@@ -73,7 +73,7 @@ func TestApplyChanges(t *testing.T) {
 		require.NoError(t, cmd.Flags().Set("cpus", "4"))
 		require.NoError(t, cmd.Flags().Set("auto-backup", "false"))
 
-		result, err := f.applyChanges(cmd, existing)
+		result, err := f.applyChanges(cmd, existing, existing.Image)
 		require.NoError(t, err)
 		assert.Equal(t, "new.example.com", result.Host)
 		assert.Equal(t, 4, result.Resources.CPUs)
@@ -89,7 +89,7 @@ func TestApplyChanges(t *testing.T) {
 		cmd := newCmd()
 		require.NoError(t, cmd.Flags().Set("env", "NEW=val"))
 
-		result, err := f.applyChanges(cmd, existing)
+		result, err := f.applyChanges(cmd, existing, existing.Image)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{"NEW": "val"}, result.EnvVars)
 	})
@@ -99,8 +99,16 @@ func TestApplyChanges(t *testing.T) {
 		cmd := newCmd()
 		require.NoError(t, cmd.Flags().Set("env", "INVALID"))
 
-		_, err := f.applyChanges(cmd, existing)
+		_, err := f.applyChanges(cmd, existing, existing.Image)
 		assert.ErrorContains(t, err, "must be in KEY=VALUE format")
+	})
+
+	t.Run("empty image", func(t *testing.T) {
+		f := &settingsFlags{}
+		cmd := newCmd()
+
+		_, err := f.applyChanges(cmd, existing, "")
+		assert.ErrorIs(t, err, docker.ErrImageRequired)
 	})
 
 	t.Run("enable auto-backup with existing path", func(t *testing.T) {
@@ -111,7 +119,7 @@ func TestApplyChanges(t *testing.T) {
 		cmd := newCmd()
 		require.NoError(t, cmd.Flags().Set("auto-backup", "true"))
 
-		result, err := f.applyChanges(cmd, noAutoBackup)
+		result, err := f.applyChanges(cmd, noAutoBackup, noAutoBackup.Image)
 		require.NoError(t, err)
 		assert.True(t, result.Backup.AutoBackup)
 	})
@@ -125,7 +133,7 @@ func TestApplyChanges(t *testing.T) {
 		cmd := newCmd()
 		require.NoError(t, cmd.Flags().Set("auto-backup", "true"))
 
-		_, err := f.applyChanges(cmd, noPath)
+		_, err := f.applyChanges(cmd, noPath, noPath.Image)
 		assert.ErrorIs(t, err, docker.ErrAutoBackupWithoutPath)
 	})
 
@@ -134,7 +142,7 @@ func TestApplyChanges(t *testing.T) {
 		cmd := newCmd()
 		require.NoError(t, cmd.Flags().Set("backup-path", ""))
 
-		_, err := f.applyChanges(cmd, existing)
+		_, err := f.applyChanges(cmd, existing, existing.Image)
 		assert.ErrorIs(t, err, docker.ErrAutoBackupWithoutPath)
 	})
 
@@ -147,7 +155,7 @@ func TestApplyChanges(t *testing.T) {
 		require.NoError(t, cmd.Flags().Set("auto-backup", "true"))
 		require.NoError(t, cmd.Flags().Set("backup-path", "/backups"))
 
-		result, err := f.applyChanges(cmd, noBackup)
+		result, err := f.applyChanges(cmd, noBackup, noBackup.Image)
 		require.NoError(t, err)
 		assert.True(t, result.Backup.AutoBackup)
 		assert.Equal(t, "/backups", result.Backup.Path)

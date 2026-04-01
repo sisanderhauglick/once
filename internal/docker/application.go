@@ -22,6 +22,7 @@ var (
 	ErrHostnameInUse      = errors.New("hostname already in use")
 	ErrHostRequired       = errors.New("host is required")
 	ErrInvalidBackup      = errors.New("invalid backup archive")
+	ErrImageRequired         = errors.New("image is required")
 	ErrBackupPathRelative    = errors.New("backup path must be absolute")
 	ErrAutoBackupWithoutPath = errors.New("auto-backup requires a backup path")
 	ErrSetupFailed        = errors.New("setup failed")

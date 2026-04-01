@@ -44,13 +44,14 @@ func (u *updateCommand) run(ctx context.Context, ns *docker.Namespace, cmd *cobr
 		return fmt.Errorf("%w: %w", docker.ErrSetupFailed, err)
 	}
 
-	settings, err := u.flags.applyChanges(cmd, app.Settings)
-	if err != nil {
-		return err
+	image := app.Settings.Image
+	if cmd.Flags().Changed("image") {
+		image = u.image
 	}
 
-	if cmd.Flags().Changed("image") {
-		settings.Image = u.image
+	settings, err := u.flags.applyChanges(cmd, app.Settings, image)
+	if err != nil {
+		return err
 	}
 
 	if settings.Host != app.Settings.Host {
