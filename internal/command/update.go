@@ -63,13 +63,11 @@ func (u *updateCommand) run(ctx context.Context, ns *docker.Namespace, cmd *cobr
 	oldSettings := app.Settings
 	app.Settings = settings
 
-	p := newCLIProgress("Updating "+currentHost, func(progress docker.DeployProgressCallback) error {
+	return runWithProgress("Updating "+currentHost, func(progress docker.DeployProgressCallback) error {
 		if err := app.Deploy(ctx, progress); err != nil {
 			app.Settings = oldSettings
 			return fmt.Errorf("%w: %w", docker.ErrDeployFailed, err)
 		}
 		return nil
 	})
-
-	return p.Run()
 }

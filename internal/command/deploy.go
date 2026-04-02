@@ -48,7 +48,6 @@ func (d *deployCommand) run(ctx context.Context, ns *docker.Namespace, cmd *cobr
 	}
 
 	settings, err := d.flags.buildSettings(imageRef, host)
-
 	if err != nil {
 		return err
 	}
@@ -62,7 +61,7 @@ func (d *deployCommand) run(ctx context.Context, ns *docker.Namespace, cmd *cobr
 
 	app := docker.NewApplication(ns, settings)
 
-	p := newCLIProgress("Deploying "+host, func(progress docker.DeployProgressCallback) error {
+	return runWithProgress("Deploying "+host, func(progress docker.DeployProgressCallback) error {
 		if err := app.Deploy(ctx, progress); err != nil {
 			if cleanupErr := app.Destroy(context.Background(), true); cleanupErr != nil {
 				slog.Error("Failed to clean up after deploy failure", "app", name, "error", cleanupErr)
@@ -76,6 +75,4 @@ func (d *deployCommand) run(ctx context.Context, ns *docker.Namespace, cmd *cobr
 
 		return nil
 	})
-
-	return p.Run()
 }

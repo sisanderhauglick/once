@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"os"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -21,8 +22,10 @@ type cliProgress struct {
 	task func(docker.DeployProgressCallback) error
 }
 
-type cliProgressDoneMsg struct{ err error }
-type cliProgressUpdateMsg struct{ p docker.DeployProgress }
+type (
+	cliProgressDoneMsg   struct{ err error }
+	cliProgressUpdateMsg struct{ p docker.DeployProgress }
+)
 
 func newCLIProgress(label string, task func(docker.DeployProgressCallback) error) *cliProgress {
 	return &cliProgress{
@@ -34,19 +37,26 @@ func newCLIProgress(label string, task func(docker.DeployProgressCallback) error
 	}
 }
 
-func (m *cliProgress) Run() error {
-	_, err := tea.NewProgram(m).Run()
-	if err != nil {
-		return err
-	}
+func runWithProgress(label string, task func(docker.DeployProgressCallback) error) error {
+	var err error
 
-	if m.err != nil {
-		fmt.Printf("%s: %s\n", m.label, lipgloss.NewStyle().Foreground(lipgloss.Red).Render("failed"))
+	if isTerminal() {
+		p := newCLIProgress(label, task)
+		if _, runErr := tea.NewProgram(p).Run(); runErr != nil {
+			return runErr
+		}
+		err = p.err
 	} else {
-		fmt.Printf("%s: %s\n", m.label, lipgloss.NewStyle().Foreground(lipgloss.Green).Render("done"))
+		err = task(func(docker.DeployProgress) {})
 	}
 
-	return m.err
+	if err != nil {
+		fmt.Printf("%s: %s\n", label, lipgloss.NewStyle().Foreground(lipgloss.Red).Render("failed"))
+	} else {
+		fmt.Printf("%s: %s\n", label, lipgloss.NewStyle().Foreground(lipgloss.Green).Render("done"))
+	}
+
+	return err
 }
 
 func (m *cliProgress) Init() tea.Cmd {
@@ -116,4 +126,14 @@ func (m *cliProgress) waitForProgress() tea.Cmd {
 		p := <-m.progressChan
 		return cliProgressUpdateMsg{p: p}
 	}
+}
+
+// Helpers
+
+func isTerminal() bool {
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }
