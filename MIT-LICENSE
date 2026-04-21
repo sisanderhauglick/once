@@ -22,3 +22,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ---
 Personal fork maintained for learning purposes. Original project:
 https://github.com/basecamp/once
+
+Notes:
+- Studying the sync.Once pattern and how this library extends it
+- Experimenting with error handling behavior in the Once.Do callback
