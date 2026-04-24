@@ -71,4 +71,4 @@ go test -v -run TestName ./internal/...
 ## Personal Notes
 
 - I'm using this fork primarily to learn how kamal-proxy integration works.
-- Useful entry point for tracing a deploy: `internal/deploy` package.
+- Tested on a personal VPS running Ubuntu 24.04 with Docker 26.x.
