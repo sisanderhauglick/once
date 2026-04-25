@@ -70,7 +70,5 @@ go test -v -run TestName ./internal/...
 
 ## Personal Notes
 
-- I'm using this fork primarily to experiment with self-hosting Rails apps on a
-  cheap VPS. The default namespace (`once`) works fine for my use case, but I
-  may explore adding a `--namespace` flag to the CLI to make it easier to run
-  multiple isolated environments on the same host without editing config files.
+- I'm using this fork primarily to learn how kamal-proxy integration works.
+- Useful reference: the proxy container lifecycle is managed in `internal/proxy`.
